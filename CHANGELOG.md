@@ -2,6 +2,11 @@
 
 Semua perubahan yang signifikan pada proyek "Hyo Music Filter" akan dicatat dalam file ini.
 
+## [v1.8.1] - 2026-08-13
+### Ditambahkan
+- **GUI Activity Log**: Menambahkan konsol log *real-time* di antarmuka utama (kiri bawah) yang menampilkan aktivitas AI, iTunes, dan MusicBrainz. 
+  - Kini pengguna dapat melihat langsung alasan sebuah lagu ditolak API, tebakan dari Gemini, dan detail *"Metadata Tidak Ditemukan"* tanpa harus membuka terminal hitam (CMD/PowerShell).
+
 ## [v1.8.0] - 2026-08-13
 ### Ditambahkan
 - **Checklist Visual (Batch Select)**: Fitur "Batch Select" kini menggunakan kotak centang `[✔]` yang jauh lebih intuitif. 

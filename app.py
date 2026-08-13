@@ -276,6 +276,17 @@ class HyoMusicModernGUI:
         # Tangani navigasi keyboard (Atas/Bawah)
         self.tree.bind("<<TreeviewSelect>>", self.on_tree_keyboard_select)
         
+        # Log Console (Real-time)
+        self.frame_log = ctk.CTkFrame(self.frame_left, fg_color="#1e1e1e", corner_radius=8)
+        self.frame_log.pack(fill="x", padx=15, pady=(0, 10))
+        
+        ctk.CTkLabel(self.frame_log, text="📜 Activity Log:", font=("Inter", 11, "bold")).pack(anchor="w", padx=10, pady=(5, 0))
+        
+        self.txt_log = ctk.CTkTextbox(self.frame_log, height=100, font=("Consolas", 10), 
+                                      fg_color="#0d0d0d", text_color="#00ff00")
+        self.txt_log.pack(fill="x", padx=10, pady=(0, 10))
+        self.txt_log.configure(state="disabled")
+        
         # Panel Edit Kata Sampah (Junk Words)
         self.frame_junk = ctk.CTkFrame(self.frame_left, fg_color="#1e1e1e", corner_radius=8)
         self.frame_junk.pack(fill="x", padx=15, pady=(0, 15))
@@ -603,6 +614,15 @@ class HyoMusicModernGUI:
             self.btn_auto.configure(text=f"🚀 Auto-Fix ({checked_count} Terpilih)")
         else:
             self.btn_auto.configure(text="🚀 Auto-Fix (Pilih Minimal 1)")
+            
+    def write_log(self, message):
+        """Menulis pesan ke kotak log di GUI secara aman (thread-safe)."""
+        def _write():
+            self.txt_log.configure(state="normal")
+            self.txt_log.insert("end", f"{message}\n")
+            self.txt_log.see("end")
+            self.txt_log.configure(state="disabled")
+        self.root.after(0, _write)
 
     def _load_details(self, filepath):
         self.selected_file = filepath
@@ -723,6 +743,8 @@ class HyoMusicModernGUI:
         self.lbl_progress_detail.configure(text="Mempersiapkan...")
         self.lbl_progress_stats.configure(text="")
         
+        self.write_log(f"--- MEMULAI AUTO-FIX UNTUK {len(files_to_process)} FILE ---")
+        
         threading.Thread(target=self._auto_fix_worker, args=(files_to_process,), daemon=True).start()
 
     def _update_progress(self, current, total, detail_text, stats_text):
@@ -807,6 +829,7 @@ class HyoMusicModernGUI:
                 count_skip += 1
                 stats = f"✅ {count_success}  ⏭️ {count_skip}  ❌ {count_fail}"
                 self.root.after(0, self._update_progress, idx, total, f"⏭️ Skip (File sudah lengkap): {fname}", stats)
+                self.write_log(f"[{idx}/{total}] SKIP: '{fname}' (Sudah Lengkap)")
                 continue
                 
             # 1. Gunakan Regex lokal dulu sebagai dasar
@@ -822,19 +845,20 @@ class HyoMusicModernGUI:
                     stats = f"✅ {count_success}  ⏭️ {count_skip}  ❌ {count_fail}"
                     self.root.after(0, self._update_progress, idx, total, f"[{idx}/{total}] 🤖 AI Parsing: {fname[:20]}...", stats)
                     
+                    self.write_log(f"[{idx}/{total}] Tanya Gemini: '{fname}'")
                     ai_parsed = parse_filename_with_ai(fname)
                     if ai_parsed:
-                        print(f"    [GEMINI] Hasil AI: {ai_parsed['artist']} - {ai_parsed['title']}")
+                        self.write_log(f"  └─ Gemini menjawab: Artist='{ai_parsed['artist']}', Title='{ai_parsed['title']}'")
                         artist = ai_parsed["artist"]
                         title = ai_parsed["title"]
                         if ai_parsed.get("album"): parsed["album"] = ai_parsed["album"]
                         if ai_parsed.get("genre"): parsed["genre"] = ai_parsed["genre"]
-                        # AI sangat akurat, jadi kalau tadinya regex gagal (parsed = None), 
-                        # kita hidupkan kembali dengan data AI.
                         if not parsed:
                             parsed = ai_parsed
-            except Exception:
-                pass
+                    else:
+                        self.write_log("  └─ Gemini gagal menemukan lagu ini.")
+            except Exception as e:
+                self.write_log(f"  └─ Error koneksi Gemini: {str(e)}")
             
             if not parsed or not artist or not title:
                 count_skip += 1
@@ -842,10 +866,12 @@ class HyoMusicModernGUI:
                 self.root.after(0, self._update_progress, idx, total, f"⏭️ Skip (Gagal Parsing): {fname}", stats)
                 if not parsed:
                     self.root.after(0, self._update_row, fp, fp, "☐", fname, "", "", "❌ Gagal Regex & AI")
+                    self.write_log(f"[{idx}/{total}] GAGAL: Regex & AI tidak tahu lagu ini.")
                 continue
             
             stats = f"✅ {count_success}  ⏭️ {count_skip}  ❌ {count_fail}"
-            self.root.after(0, self._update_progress, idx, total, f"[{idx}/{total}] 🔍 {artist} - {title}", stats)
+            self.root.after(0, self._update_progress, idx, total, f"[{idx}/{total}] 🔍 Mencari Metadata: {artist} - {title}", stats)
+            self.write_log(f"[{idx}/{total}] Mencari Metadata: {artist} - {title}")
                 
             key = f"{artist.lower()}||{title.lower()}"
             cache_entry = self.cache_db.get(key)
@@ -857,32 +883,41 @@ class HyoMusicModernGUI:
                 if cache_entry:
                     # VALIDASI KEMIRIPAN (Sudah diturunkan jadi 60%)
                     if not is_similar(artist, cache_entry["artist"]) or not is_similar(title, cache_entry["title"]):
-                        print(f"    [ITUNES] Ditolak karena beda jauh: Asli '{artist} - {title}' vs API '{cache_entry['artist']} - {cache_entry['title']}'")
+                        self.write_log(f"  └─ iTunes ditolak (beda jauh). Asli: '{artist} - {title}' vs API: '{cache_entry['artist']} - {cache_entry['title']}'")
                         cache_entry = None # Tolak jika hasilnya terlalu berbeda (bukan lagu yang sama)
                     else:
                         source_label = "iTunes"
                         
                         # Jika iTunes sukses TAPI tidak ada cover, coba cari cover-nya di MusicBrainz!
                         if not cache_entry.get("local_cover"):
+                            self.write_log("  └─ iTunes sukses, tapi tanpa cover. Mencari cover ke MusicBrainz...")
                             time.sleep(1.5) # Jeda agar tidak kena rate limit MusicBrainz
                             mb_data = self._fetch_from_musicbrainz(artist, title, cover_dir)
                             if mb_data and mb_data.get("local_cover"):
                                 cache_entry["local_cover"] = mb_data["local_cover"]
                                 source_label = "iTunes + MusicBrainz"
+                                self.write_log("     └─ Cover ditemukan di MusicBrainz!")
+                            else:
+                                self.write_log("     └─ MusicBrainz juga tidak punya cover lagu ini.")
                                 
                         self.cache_db[key] = cache_entry
+                else:
+                    self.write_log("  └─ iTunes tidak menemukan lagu ini.")
                     
             if not cache_entry:
                 time.sleep(1.5) # Jeda amankan rate limit
+                self.write_log("  └─ Coba fallback ke MusicBrainz...")
                 cache_entry = self._fetch_from_musicbrainz(artist, title, cover_dir)
                 if cache_entry:
                     # VALIDASI KEMIRIPAN
                     if not is_similar(artist, cache_entry["artist"]) or not is_similar(title, cache_entry["title"]):
-                        print(f"    [MB] Ditolak karena beda jauh: Asli '{artist} - {title}' vs API '{cache_entry['artist']} - {cache_entry['title']}'")
+                        self.write_log(f"  └─ MusicBrainz ditolak (beda jauh). Asli: '{artist} - {title}' vs API: '{cache_entry['artist']} - {cache_entry['title']}'")
                         cache_entry = None
                     else:
                         source_label = "MusicBrainz"
                         self.cache_db[key] = cache_entry
+                else:
+                    self.write_log("  └─ MusicBrainz gagal. Lagu tidak ditemukan di internet.")
                     
             status_text = f"✅ Sukses ({source_label})"
             try:
@@ -931,14 +966,17 @@ class HyoMusicModernGUI:
                     count_fail += 1
                     rel_path = os.path.relpath(new_fp, self.target_dir)
                     self.root.after(0, self._update_row, fp, new_fp, "☐", rel_path, final_artist, final_title, "⚠️ Rename Saja (File Korup)")
+                    self.write_log(f"[{idx}/{total}] PERINGATAN: File korup (MPEG sync error). Hanya di-rename.")
                 except Exception as ex:
                     count_fail += 1
                     rel_path = os.path.relpath(fp, self.target_dir)
                     self.root.after(0, self._update_row, fp, fp, "☐", rel_path, final_artist, final_title, "❌ Error Total")
+                    self.write_log(f"[{idx}/{total}] ERROR TOTAL: Gagal me-rename file korup ({str(ex)})")
             except Exception as e:
                 count_fail += 1
                 rel_path = os.path.relpath(fp, self.target_dir)
                 self.root.after(0, self._update_row, fp, fp, "☑", rel_path, artist, title, f"❌ Error: {str(e)[:30]}")
+                self.write_log(f"[{idx}/{total}] ERROR API/Injeksi: {str(e)}")
             
             # Update stats setelah proses file selesai
             stats = f"✅ {count_success}  ⏭️ {count_skip}  ❌ {count_fail}"
