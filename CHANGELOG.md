@@ -2,6 +2,13 @@
 
 Semua perubahan yang signifikan pada proyek "Hyo Music Filter" akan dicatat dalam file ini.
 
+## [v1.9.0] - 2026-08-13
+### Ditambahkan
+- **Fitur Selektif Undo / Rollback (Batalkan Rename)**: Sekarang pengguna tidak perlu panik jika ada file yang keliru saat diproses Auto-Fix!
+  - Aplikasi secara diam-diam mencatat riwayat semua perubahan (dari nama asli ke nama baru) ke dalam file `history.json`.
+  - Terdapat tombol baru **"⏪ Undo Terpilih"** di Toolbar atas.
+  - Untuk menggunakannya, cukup centang kotak `[☑]` pada file-file yang salah, lalu klik tombol Undo. Aplikasi akan otomatis **mengembalikan nama fisiknya seperti semula** dan **menghapus semua metadata & cover art (ID3 tag)** yang telanjur disuntikkan.
+
 ## [v1.8.1] - 2026-08-13
 ### Ditambahkan
 - **GUI Activity Log**: Menambahkan konsol log *real-time* di antarmuka utama (kiri bawah) yang menampilkan aktivitas AI, iTunes, dan MusicBrainz. 

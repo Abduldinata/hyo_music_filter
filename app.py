@@ -199,6 +199,10 @@ class HyoMusicModernGUI:
                                       fg_color="#006400", hover_color="#008000", command=self.run_auto_fix)
         self.btn_auto.pack(side="left")
         
+        self.btn_undo = ctk.CTkButton(self.toolbar, text="⏪ Undo Terpilih", font=("Inter", 11, "bold"), 
+                                      fg_color="#8b0000", hover_color="#a52a2a", width=120, command=self.run_undo)
+        self.btn_undo.pack(side="left", padx=(10, 0))
+        
         self.lbl_status = ctk.CTkLabel(self.toolbar, text="Siap.", font=("Inter", 12, "italic"), text_color="gray")
         self.lbl_status.pack(side="right")
         
@@ -630,7 +634,32 @@ class HyoMusicModernGUI:
         # Hanya load detail lagu pertama yang terpilih
         self._load_details(selected[0])
         
-    def _update_btn_auto_text(self):
+    def _log_history(self, old_filepath, new_filepath):
+        """Mencatat riwayat perubahan agar bisa di-undo nanti."""
+        history_path = os.path.join(self.target_dir, "history.json")
+        history = {}
+        if os.path.exists(history_path):
+            try:
+                with open(history_path, "r", encoding="utf-8") as f:
+                    history = json.load(f)
+            except Exception:
+                pass
+                
+        # Gunakan path relatif agar history tidak rusak jika folder dipindah
+        old_rel = os.path.relpath(old_filepath, self.target_dir)
+        new_rel = os.path.relpath(new_filepath, self.target_dir)
+        
+        # Simpan dengan key = new_rel (nama saat ini)
+        history[new_rel] = {
+            "original_path": old_rel,
+            "timestamp": time.time()
+        }
+        
+        try:
+            with open(history_path, "w", encoding="utf-8") as f:
+                json.dump(history, f, indent=4)
+        except Exception:
+            pass
         """Update teks tombol berdasarkan jumlah checklist yang tercentang."""
         checked_count = 0
         for item in self.tree.get_children():
@@ -726,6 +755,7 @@ class HyoMusicModernGUI:
                     new_filename = clean_filename(f"{artist} - {title} (1){ext}")
                     new_filepath = os.path.join(directory, new_filename)
                 os.rename(self.selected_file, new_filepath)
+                self._log_history(self.selected_file, new_filepath)
                 
             rel_path = os.path.relpath(new_filepath, self.target_dir)
             status_msg = "✅ SUKSES (Manual)" if metadata_success else "⚠️ Rename Saja (File Korup)"
@@ -744,6 +774,96 @@ class HyoMusicModernGUI:
                 
         except Exception as e:
             messagebox.showerror("Error", f"Gagal me-rename file fisik: {e}")
+
+    def run_undo(self):
+        """Membatalkan rename dan membersihkan metadata pada file yang dipilih."""
+        if not self.target_dir: return
+        
+        # Kumpulkan semua file yang dicentang (☑) dari _all_rows
+        files_to_undo = []
+        for iid, vals in self._all_rows:
+            if vals[0] == "☑":
+                files_to_undo.append(iid)
+                
+        if not files_to_undo:
+            messagebox.showwarning("Peringatan", "Tidak ada file yang dicentang (☑) untuk di-Undo.\n\nSilakan centang file yang ingin Anda batalkan perubahannya.")
+            return
+            
+        history_path = os.path.join(self.target_dir, "history.json")
+        if not os.path.exists(history_path):
+            messagebox.showinfo("Undo", "Tidak ada riwayat perubahan (history.json) di folder ini.")
+            return
+            
+        try:
+            with open(history_path, "r", encoding="utf-8") as f:
+                history = json.load(f)
+        except Exception as e:
+            messagebox.showerror("Error", f"Gagal membaca history: {e}")
+            return
+            
+        success_count = 0
+        self.write_log(f"\n--- MEMULAI UNDO UNTUK {len(files_to_undo)} FILE ---")
+        
+        for fp in files_to_undo:
+            if not os.path.exists(fp): continue
+            
+            rel_fp = os.path.relpath(fp, self.target_dir)
+            # Cek apakah file ini ada di history
+            record = history.get(rel_fp)
+            
+            if not record:
+                self.write_log(f"[-] Tidak ada riwayat untuk: {rel_fp}")
+                continue
+                
+            orig_rel_path = record["original_path"]
+            orig_full_path = os.path.join(self.target_dir, orig_rel_path)
+            
+            # Hapus Metadata (Biar balik kotor lagi)
+            try:
+                ext = os.path.splitext(fp)[1].lower()
+                if ext == ".mp3":
+                    audio = MP3(fp, ID3=ID3)
+                    audio.delete()
+                    audio.save(v2_version=3)
+                elif ext == ".m4a":
+                    audio = MP4(fp)
+                    audio.delete()
+                    audio.save()
+                elif ext == ".flac":
+                    audio = FLAC(fp)
+                    audio.delete()
+                    audio.save()
+            except Exception as e:
+                self.write_log(f"[!] Gagal membersihkan metadata {rel_fp}: {e}")
+                
+            # Rename balik ke nama aslinya
+            try:
+                if fp != orig_full_path:
+                    # Tangani kalau nama aslinya udah ada yg nempatin (bentrok)
+                    if os.path.exists(orig_full_path):
+                        base, ext = os.path.splitext(orig_full_path)
+                        orig_full_path = f"{base} (Undo){ext}"
+                    os.rename(fp, orig_full_path)
+                
+                # Hapus dari history
+                del history[rel_fp]
+                
+                self.write_log(f"[+] Berhasil UNDO: -> {os.path.basename(orig_full_path)}")
+                success_count += 1
+            except Exception as e:
+                self.write_log(f"[!] Gagal rename {rel_fp}: {e}")
+                
+        # Simpan history terbaru
+        try:
+            with open(history_path, "w", encoding="utf-8") as f:
+                json.dump(history, f, indent=4)
+        except Exception: pass
+        
+        self.write_log(f"--- UNDO SELESAI ({success_count} Berhasil) ---")
+        messagebox.showinfo("Undo Selesai", f"Berhasil mengembalikan {success_count} file ke keadaan aslinya.")
+        
+        # Refresh tabel
+        self._refresh_table()
 
     def run_auto_fix(self):
         if not self.target_dir: return
@@ -973,6 +1093,7 @@ class HyoMusicModernGUI:
                         new_fname = clean_filename(f"{final_artist} - {final_title} (1){ext}")
                         new_fp = os.path.join(directory, new_fname)
                     os.rename(fp, new_fp)
+                    self._log_history(fp, new_fp)
                 
                 count_success += 1
                 rel_path = os.path.relpath(new_fp, self.target_dir)
@@ -990,6 +1111,7 @@ class HyoMusicModernGUI:
                             new_fname = clean_filename(f"{final_artist} - {final_title} (1){ext}")
                             new_fp = os.path.join(directory, new_fname)
                         os.rename(fp, new_fp)
+                        self._log_history(fp, new_fp)
                     count_fail += 1
                     rel_path = os.path.relpath(new_fp, self.target_dir)
                     self.root.after(0, self._update_row, fp, new_fp, "☐", rel_path, final_artist, final_title, "⚠️ Rename Saja (File Korup)")
