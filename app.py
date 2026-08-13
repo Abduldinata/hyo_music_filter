@@ -400,7 +400,7 @@ class HyoMusicModernGUI:
         # Filter rows
         filtered = []
         for iid, vals in self._all_rows:
-            fname, artist, title, status = vals
+            chk, fname, artist, title, status = vals
             
             # Search filter
             if search_query:
@@ -426,23 +426,14 @@ class HyoMusicModernGUI:
         
         # Sort jika A-Z atau Z-A
         if self.active_filter == "az":
-            filtered.sort(key=lambda x: (x[1][1].lower(), x[1][2].lower()))  # artist, title
+            filtered.sort(key=lambda x: (x[1][2].lower(), x[1][3].lower()))  # artist, title (index ke 2 dan 3 sekarang)
         elif self.active_filter == "za":
-            filtered.sort(key=lambda x: (x[1][1].lower(), x[1][2].lower()), reverse=True)
+            filtered.sort(key=lambda x: (x[1][2].lower(), x[1][3].lower()), reverse=True)
         
         # Render
         for iid, vals in filtered:
-            # Karena vals di _all_rows tidak punya check, kita beri default "☐"
-            # Cek dulu apakah dia punya 4 elemen (format lama) atau 5 elemen (format baru)
-            if len(vals) == 4:
-                chk = "☐"
-                # Otomatis centang jika file siap di-Auto Fix (belum lengkap)
-                if "⏳ Siap" in vals[3]:
-                    chk = "☑"
-                new_vals = (chk, vals[0], vals[1], vals[2], vals[3])
-                self.tree.insert("", "end", iid=iid, values=new_vals)
-            else:
-                self.tree.insert("", "end", iid=iid, values=vals)
+            # Tidak perlu cek format lama/baru lagi, langsung insert
+            self.tree.insert("", "end", iid=iid, values=vals)
                 
         self._update_btn_auto_text()
         
