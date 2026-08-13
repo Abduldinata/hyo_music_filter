@@ -43,6 +43,19 @@ def is_similar(str1, str2, threshold=0.60):
         return False
     return difflib.SequenceMatcher(None, str1.lower(), str2.lower()).ratio() >= threshold
 
+def is_same_song(orig_artist, orig_title, api_artist, api_title):
+    orig_a, orig_t = str(orig_artist).lower(), str(orig_title).lower()
+    api_a, api_t = str(api_artist).lower(), str(api_title).lower()
+    title_ratio = difflib.SequenceMatcher(None, orig_t, api_t).ratio()
+    artist_ratio = difflib.SequenceMatcher(None, orig_a, api_a).ratio()
+    
+    if title_ratio > 0.75:
+        if orig_a in api_a or api_a in orig_a or artist_ratio > 0.40:
+            return True
+    if title_ratio > 0.55 and artist_ratio > 0.60:
+        return True
+    return False
+
 def parse_filename(filename):
     """Mengekstrak data dari nama file menggunakan daftar Regex bertingkat (Top-Down)."""
     # Ambil HANYA NAMA tanpa ekstensinya (karena regex kita sekarang berakhiran $ tanpa .mp3)
@@ -180,9 +193,10 @@ def process_file(filepath, metadata_db):
         # Validasi sebelum Auto-Correct
         db_artist = db_meta.get("artist")
         db_title = db_meta.get("title")
-        if db_artist and is_similar(artist, db_artist): final_artist = db_artist
-        if db_title and is_similar(title, db_title): final_title = db_title
-        
+        if is_same_song(artist, title, db_artist, db_title):
+            if db_artist: final_artist = db_artist
+            if db_title: final_title = db_title
+            
         if not album and db_meta.get("album"):
             album = db_meta["album"]
         if not year and db_meta.get("year"):

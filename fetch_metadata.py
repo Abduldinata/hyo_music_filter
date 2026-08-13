@@ -10,6 +10,19 @@ def is_similar(str1, str2, threshold=0.60):
     if not str1 or not str2: return False
     return difflib.SequenceMatcher(None, str1.lower(), str2.lower()).ratio() >= threshold
 
+def is_same_song(orig_artist, orig_title, api_artist, api_title):
+    orig_a, orig_t = str(orig_artist).lower(), str(orig_title).lower()
+    api_a, api_t = str(api_artist).lower(), str(api_title).lower()
+    title_ratio = difflib.SequenceMatcher(None, orig_t, api_t).ratio()
+    artist_ratio = difflib.SequenceMatcher(None, orig_a, api_a).ratio()
+    
+    if title_ratio > 0.75:
+        if orig_a in api_a or api_a in orig_a or artist_ratio > 0.40:
+            return True
+    if title_ratio > 0.55 and artist_ratio > 0.60:
+        return True
+    return False
+
 def main():
     print("="*60)
     print(" 📡 ITUNES METADATA FETCHER (ONLINE)")
@@ -129,8 +142,8 @@ def main():
                     fetched_artist = item.get("artistName")
                     fetched_title = item.get("trackName")
                     
-                    # Validasi kemiripan
-                    if not is_similar(artist, fetched_artist) or not is_similar(title, fetched_title):
+                    # Validasi kemiripan pintar
+                    if not is_same_song(artist, title, fetched_artist, fetched_title):
                         print(f"    -> [DITOLAK] Hasil API terlalu berbeda ({fetched_artist} - {fetched_title}). Bukan lagu yang sama.")
                         failed.append(filename)
                         time.sleep(2)

@@ -119,6 +119,29 @@ def is_similar(str1, str2, threshold=0.60):
         return False
     return difflib.SequenceMatcher(None, str1.lower(), str2.lower()).ratio() >= threshold
 
+def is_same_song(orig_artist, orig_title, api_artist, api_title):
+    """Logika cerdas untuk memvalidasi apakah lagu dari API benar-benar lagu yang sama."""
+    # Bersihkan teks
+    orig_a, orig_t = str(orig_artist).lower(), str(orig_title).lower()
+    api_a, api_t = str(api_artist).lower(), str(api_title).lower()
+    
+    # 1. Cek kemiripan Judul (Title)
+    title_ratio = difflib.SequenceMatcher(None, orig_t, api_t).ratio()
+    artist_ratio = difflib.SequenceMatcher(None, orig_a, api_a).ratio()
+    
+    # Jika judul SANGAT MIRIP (misal: "Let me love you" vs "Let Me Love You (feat. Justin)")
+    # Maka abaikan perbedaan artis. Karena bisa jadi DJ Snake feat Justin Bieber, atau sebaliknya.
+    if title_ratio > 0.75:
+        # Cek apakah artis setidaknya mengandung salah satu kata dari artis asli (misal 'Justin' ada di 'DJ Snake feat Justin')
+        if orig_a in api_a or api_a in orig_a or artist_ratio > 0.40:
+            return True
+            
+    # 2. Jika judul hanya agak mirip, pastikan artisnya sangat mirip
+    if title_ratio > 0.55 and artist_ratio > 0.60:
+        return True
+        
+    return False
+
 class HyoMusicModernGUI:
     def __init__(self, root):
         self.root = root
@@ -881,10 +904,10 @@ class HyoMusicModernGUI:
             if not cache_entry:
                 cache_entry = self._fetch_from_itunes(artist, title, cover_dir)
                 if cache_entry:
-                    # VALIDASI KEMIRIPAN (Sudah diturunkan jadi 60%)
-                    if not is_similar(artist, cache_entry["artist"]) or not is_similar(title, cache_entry["title"]):
+                    # VALIDASI KEMIRIPAN PINTAR
+                    if not is_same_song(artist, title, cache_entry["artist"], cache_entry["title"]):
                         self.write_log(f"  └─ iTunes ditolak (beda jauh). Asli: '{artist} - {title}' vs API: '{cache_entry['artist']} - {cache_entry['title']}'")
-                        cache_entry = None # Tolak jika hasilnya terlalu berbeda (bukan lagu yang sama)
+                        cache_entry = None # Tolak jika hasilnya terlalu berbeda
                     else:
                         source_label = "iTunes"
                         
@@ -909,8 +932,8 @@ class HyoMusicModernGUI:
                 self.write_log("  └─ Coba fallback ke MusicBrainz...")
                 cache_entry = self._fetch_from_musicbrainz(artist, title, cover_dir)
                 if cache_entry:
-                    # VALIDASI KEMIRIPAN
-                    if not is_similar(artist, cache_entry["artist"]) or not is_similar(title, cache_entry["title"]):
+                    # VALIDASI KEMIRIPAN PINTAR
+                    if not is_same_song(artist, title, cache_entry["artist"], cache_entry["title"]):
                         self.write_log(f"  └─ MusicBrainz ditolak (beda jauh). Asli: '{artist} - {title}' vs API: '{cache_entry['artist']} - {cache_entry['title']}'")
                         cache_entry = None
                     else:
