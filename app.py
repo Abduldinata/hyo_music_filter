@@ -583,10 +583,20 @@ class HyoMusicModernGUI:
         album = self.inputs["Album"].get().strip()
         genre = self.inputs["Genre"].get().strip()
         
+        metadata_success = True
         try:
             # Inject tags using util method
             self._inject_metadata(self.selected_file, title, artist, album, None, genre, self.current_cover_path)
+        except mutagen.MutagenError:
+            metadata_success = False
+            if not messagebox.askyesno("Format File Tidak Valid", 
+                "Gagal menyuntikkan metadata (Cover/Artis/Judul) karena file ini rusak atau bukan audio asli (kemungkinan file MP4/Video yang hanya diganti namanya menjadi .mp3).\n\nApakah Anda tetap ingin me-rename nama file fisiknya saja?"):
+                return
+        except Exception as e:
+            messagebox.showerror("Error", f"Gagal menyimpan: {e}")
+            return
             
+        try:
             ext = os.path.splitext(self.selected_file)[1]
             new_filename = clean_filename(f"{artist} - {title}{ext}")
             directory = os.path.dirname(self.selected_file)
@@ -599,13 +609,22 @@ class HyoMusicModernGUI:
                 os.rename(self.selected_file, new_filepath)
                 
             rel_path = os.path.relpath(new_filepath, self.target_dir)
-            self._update_row(self.selected_file, new_filepath, rel_path, artist, title, "✅ SUKSES (Manual)")
+            status_msg = "✅ SUKSES (Manual)" if metadata_success else "⚠️ Rename Saja (File Korup)"
+            self._update_row(self.selected_file, new_filepath, rel_path, artist, title, status_msg)
             self.selected_file = new_filepath
-            self.music_files = glob.glob(os.path.join(self.target_dir, "**", "*.mp3"), recursive=True)
             
-            self.lbl_status.configure(text=f"Berhasil menyimpan & rename: {new_filename}")
+            # Update list music_files agar tidak terputus
+            self.music_files = []
+            for e in ("*.mp3", "*.m4a", "*.flac"):
+                self.music_files.extend(glob.glob(os.path.join(self.target_dir, "**", e), recursive=True))
+            
+            if metadata_success:
+                self.lbl_status.configure(text=f"Berhasil menyimpan & rename: {new_filename}")
+            else:
+                self.lbl_status.configure(text=f"Berhasil me-rename (tanpa metadata): {new_filename}")
+                
         except Exception as e:
-            messagebox.showerror("Error", f"Gagal menyimpan: {e}")
+            messagebox.showerror("Error", f"Gagal me-rename file fisik: {e}")
 
     def run_auto_fix(self):
         if not self.target_dir: return
@@ -802,10 +821,25 @@ class HyoMusicModernGUI:
                 rel_path = os.path.relpath(new_fp, self.target_dir)
                 self.root.after(0, self._update_row, fp, new_fp, rel_path, final_artist, final_title, status_text)
             except mutagen.MutagenError as e:
-                # Menangkap error spesifik "can't sync to MPEG frame" dan file korup lainnya
-                count_fail += 1
-                rel_path = os.path.relpath(fp, self.target_dir)
-                self.root.after(0, self._update_row, fp, fp, rel_path, artist, title, "❌ File Korup/Bukan MP3 Asli")
+                # Menangkap error spesifik "can't sync to MPEG frame"
+                # Tetap rename filenya agar setidaknya nama luarnya rapi
+                try:
+                    ext = os.path.splitext(fp)[1]
+                    new_fname = clean_filename(f"{final_artist} - {final_title}{ext}")
+                    directory = os.path.dirname(fp)
+                    new_fp = os.path.join(directory, new_fname)
+                    if fp != new_fp:
+                        if os.path.exists(new_fp):
+                            new_fname = clean_filename(f"{final_artist} - {final_title} (1){ext}")
+                            new_fp = os.path.join(directory, new_fname)
+                        os.rename(fp, new_fp)
+                    count_fail += 1
+                    rel_path = os.path.relpath(new_fp, self.target_dir)
+                    self.root.after(0, self._update_row, fp, new_fp, rel_path, final_artist, final_title, "⚠️ Rename Saja (File Korup)")
+                except Exception as ex:
+                    count_fail += 1
+                    rel_path = os.path.relpath(fp, self.target_dir)
+                    self.root.after(0, self._update_row, fp, fp, rel_path, final_artist, final_title, "❌ Error Total")
             except Exception as e:
                 count_fail += 1
                 rel_path = os.path.relpath(fp, self.target_dir)

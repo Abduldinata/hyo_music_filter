@@ -2,6 +2,10 @@
 
 Semua perubahan yang signifikan pada proyek "Hyo Music Filter" akan dicatat dalam file ini.
 
+## [v1.6.1] - 2026-08-13
+### Diperbaiki
+- **Solusi untuk File Korup (MPEG Sync Error)**: Saat pengguna memproses file yang korup (contohnya file MP4 video yang di-rename menjadi `.mp3` secara paksa tanpa konversi), library akan menolak menyuntikkan ID3 tag. Sekarang, alih-alih gagal total, aplikasi akan menampilkan opsi cerdas: aplikasi akan **tetap me-rename nama file fisiknya** menjadi rapi (sesuai artis/judul) meskipun metadatanya tidak dapat disuntikkan. File ini akan diberi status `⚠️ Rename Saja (File Korup)`.
+
 ## [v1.6.0] - 2026-08-13
 ### Ditambahkan
 - **Batch Select Auto-Fix**: Sekarang pengguna dapat memproses (Auto-Fix) hanya file-file tertentu saja, alih-alih seluruh isi folder.
