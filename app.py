@@ -119,28 +119,32 @@ def is_similar(str1, str2, threshold=0.60):
         return False
     return difflib.SequenceMatcher(None, str1.lower(), str2.lower()).ratio() >= threshold
 
+def clean_for_match(s):
+    """Membersihkan string untuk keperluan validasi kemiripan (hapus kurung dan spasi)."""
+    if not s: return ""
+    # Hapus teks di dalam kurung () atau []
+    s = re.sub(r'\(.*?\)', '', s)
+    s = re.sub(r'\[.*?\]', '', s)
+    # Hapus kata hubung kolaborasi
+    s = re.sub(r'\b(feat|ft|and|&)\b', '', s, flags=re.IGNORECASE)
+    # Hapus semua karakter selain huruf dan angka
+    s = re.sub(r'[^a-zA-Z0-9]', '', s).lower()
+    return s
+
 def is_same_song(orig_artist, orig_title, api_artist, api_title):
     """Logika cerdas untuk memvalidasi apakah lagu dari API benar-benar lagu yang sama."""
-    # Bersihkan teks
-    orig_a, orig_t = str(orig_artist).lower(), str(orig_title).lower()
-    api_a, api_t = str(api_artist).lower(), str(api_title).lower()
+    orig_a, orig_t = clean_for_match(str(orig_artist)), clean_for_match(str(orig_title))
+    api_a, api_t = clean_for_match(str(api_artist)), clean_for_match(str(api_title))
     
-    # 1. Cek kemiripan Judul (Title)
-    title_ratio = difflib.SequenceMatcher(None, orig_t, api_t).ratio()
-    artist_ratio = difflib.SequenceMatcher(None, orig_a, api_a).ratio()
+    if not orig_t or not api_t: return False
     
-    # Jika judul SANGAT MIRIP (misal: "Let me love you" vs "Let Me Love You (feat. Justin)")
-    # Maka abaikan perbedaan artis. Karena bisa jadi DJ Snake feat Justin Bieber, atau sebaliknya.
-    if title_ratio > 0.75:
-        # Cek apakah artis setidaknya mengandung salah satu kata dari artis asli (misal 'Justin' ada di 'DJ Snake feat Justin')
-        if orig_a in api_a or api_a in orig_a or artist_ratio > 0.40:
-            return True
-            
-    # 2. Jika judul hanya agak mirip, pastikan artisnya sangat mirip
-    if title_ratio > 0.55 and artist_ratio > 0.60:
-        return True
-        
-    return False
+    # 1. Judul harus sangat mirip ATAU saling mengandung (substring)
+    title_match = (orig_t in api_t) or (api_t in orig_t) or difflib.SequenceMatcher(None, orig_t, api_t).ratio() > 0.80
+    
+    # 2. Artis harus agak mirip ATAU saling mengandung (karena sering tukar posisi feat)
+    artist_match = (orig_a in api_a) or (api_a in orig_a) or difflib.SequenceMatcher(None, orig_a, api_a).ratio() > 0.40
+    
+    return title_match and artist_match
 
 class HyoMusicModernGUI:
     def __init__(self, root):

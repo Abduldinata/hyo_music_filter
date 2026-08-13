@@ -43,18 +43,21 @@ def is_similar(str1, str2, threshold=0.60):
         return False
     return difflib.SequenceMatcher(None, str1.lower(), str2.lower()).ratio() >= threshold
 
+def clean_for_match(s):
+    if not s: return ""
+    import re
+    s = re.sub(r'\(.*?\)', '', str(s))
+    s = re.sub(r'\[.*?\]', '', s)
+    s = re.sub(r'\b(feat|ft|and|&)\b', '', s, flags=re.IGNORECASE)
+    return re.sub(r'[^a-zA-Z0-9]', '', s).lower()
+
 def is_same_song(orig_artist, orig_title, api_artist, api_title):
-    orig_a, orig_t = str(orig_artist).lower(), str(orig_title).lower()
-    api_a, api_t = str(api_artist).lower(), str(api_title).lower()
-    title_ratio = difflib.SequenceMatcher(None, orig_t, api_t).ratio()
-    artist_ratio = difflib.SequenceMatcher(None, orig_a, api_a).ratio()
-    
-    if title_ratio > 0.75:
-        if orig_a in api_a or api_a in orig_a or artist_ratio > 0.40:
-            return True
-    if title_ratio > 0.55 and artist_ratio > 0.60:
-        return True
-    return False
+    orig_a, orig_t = clean_for_match(orig_artist), clean_for_match(orig_title)
+    api_a, api_t = clean_for_match(api_artist), clean_for_match(api_title)
+    if not orig_t or not api_t: return False
+    title_match = (orig_t in api_t) or (api_t in orig_t) or difflib.SequenceMatcher(None, orig_t, api_t).ratio() > 0.80
+    artist_match = (orig_a in api_a) or (api_a in orig_a) or difflib.SequenceMatcher(None, orig_a, api_a).ratio() > 0.40
+    return title_match and artist_match
 
 def parse_filename(filename):
     """Mengekstrak data dari nama file menggunakan daftar Regex bertingkat (Top-Down)."""
