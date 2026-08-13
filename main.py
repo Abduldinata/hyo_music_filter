@@ -2,8 +2,13 @@ import os
 import glob
 import re
 import json
-from mutagen.mp3 import MP3
-from mutagen.id3 import ID3, TIT2, TPE1, TCON, APIC, TALB, TDRC, error
+try:
+    from mutagen.mp3 import MP3
+    from mutagen.id3 import ID3, TIT2, TPE1, TCON, APIC, TALB, TDRC, error as id3_error
+    from mutagen.mp4 import MP4, MP4Cover
+    from mutagen.flac import FLAC, Picture
+except ImportError:
+    pass
 
 # ==========================================
 # REGEX PATTERNS (SUPERCHARGED)
@@ -117,47 +122,77 @@ def process_file(filepath, metadata_db):
         print("    [DB] Data TIDAK ditemukan di cache lokal. Melanjutkan dengan tag dasar.")
 
     # 2. Injeksi ID3 Tag (Mutagen)
-    if ext == ".mp3":
-        try:
+    try:
+        if ext == ".mp3":
             audio = MP3(filepath, ID3=ID3)
-            # Bersihkan tag lama agar fresh
-            try:
-                audio.delete()
-            except error:
-                pass
-                
-            audio.tags = ID3()
+            try: audio.delete()
+            except id3_error: pass
             
-            # Set Metadata Standar
-            audio.tags.add(TIT2(encoding=3, text=title))
-            audio.tags.add(TPE1(encoding=3, text=artist))
-            if album:
-                audio.tags.add(TALB(encoding=3, text=album))
-            if year:
-                audio.tags.add(TDRC(encoding=3, text=str(year)))
-            if genre:
-                audio.tags.add(TCON(encoding=3, text=genre))
-                
-            # Injeksi Cover Art fisik jika gambarnya ada di folder 'covers/'
+            audio.tags = ID3()
+            if title: audio.tags.add(TIT2(encoding=3, text=title))
+            if artist: audio.tags.add(TPE1(encoding=3, text=artist))
+            if album: audio.tags.add(TALB(encoding=3, text=album))
+            if year: audio.tags.add(TDRC(encoding=3, text=str(year)))
+            if genre: audio.tags.add(TCON(encoding=3, text=genre))
+            
             cover_injected = False
             if cover_path and os.path.exists(cover_path):
                 with open(cover_path, "rb") as img:
                     audio.tags.add(APIC(encoding=3, mime='image/jpeg', type=3, desc='Cover', data=img.read()))
                     cover_injected = True
-                    
-            # Simpan dengan standar ID3v2.3 agar kompatibel dengan Windows Explorer dan AIMP
             audio.save(v2_version=3)
             
-            if cover_injected:
-                print("    [TAG] Berhasil menginjeksi Metadata & Cover Art.")
-            else:
-                print("    [TAG] Berhasil menginjeksi Metadata (Tanpa Cover Art).")
-        except PermissionError:
-            print("    [-] Akses ditolak. File mungkin sedang diputar di aplikasi lain.")
+        elif ext == ".m4a":
+            audio = MP4(filepath)
+            audio.delete()
+            if title: audio.tags['\xa9nam'] = [title]
+            if artist: audio.tags['\xa9ART'] = [artist]
+            if album: audio.tags['\xa9alb'] = [album]
+            if year: audio.tags['\xa9day'] = [str(year)]
+            if genre: audio.tags['\xa9gen'] = [genre]
+            
+            cover_injected = False
+            if cover_path and os.path.exists(cover_path):
+                with open(cover_path, "rb") as img:
+                    audio.tags['covr'] = [MP4Cover(img.read(), imageformat=MP4Cover.FORMAT_JPEG)]
+                    cover_injected = True
+            audio.save()
+            
+        elif ext == ".flac":
+            audio = FLAC(filepath)
+            audio.delete()
+            if title: audio["title"] = title
+            if artist: audio["artist"] = artist
+            if album: audio["album"] = album
+            if year: audio["date"] = str(year)
+            if genre: audio["genre"] = genre
+            
+            cover_injected = False
+            if cover_path and os.path.exists(cover_path):
+                audio.clear_pictures()
+                pic = Picture()
+                pic.type = 3
+                pic.mime = "image/jpeg"
+                pic.desc = "Cover"
+                with open(cover_path, "rb") as img:
+                    pic.data = img.read()
+                audio.add_picture(pic)
+                cover_injected = True
+            audio.save()
+        else:
+            print(f"    [-] Ekstensi {ext} tidak didukung untuk injeksi tag.")
             return
-        except Exception as e:
-            print(f"    [-] Gagal menginjeksi tag: {e}")
-            return
+
+        if cover_injected:
+            print("    [TAG] Berhasil menginjeksi Metadata & Cover Art.")
+        else:
+            print("    [TAG] Berhasil menginjeksi Metadata (Tanpa Cover Art).")
+    except PermissionError:
+        print("    [-] Akses ditolak. File mungkin sedang diputar di aplikasi lain.")
+        return
+    except Exception as e:
+        print(f"    [-] Gagal menginjeksi tag: {e}")
+        return
             
     # 3. Rename File Fisik
     new_filename = clean_filename(f"{artist} - {title}{ext}")
@@ -192,11 +227,13 @@ def main():
         print("[-] Folder tidak ditemukan!")
         return
         
-    search_pattern = os.path.join(target_dir, "**", "*.mp3")
-    music_files = glob.glob(search_pattern, recursive=True)
+    music_files = []
+    for ext in ("*.mp3", "*.m4a", "*.flac"):
+        search_pattern = os.path.join(target_dir, "**", ext)
+        music_files.extend(glob.glob(search_pattern, recursive=True))
     
     if not music_files:
-        print("[-] Tidak ada file .mp3 di dalam folder tersebut (atau subfoldernya).")
+        print("[-] Tidak ada file musik (.mp3, .m4a, .flac) di dalam folder tersebut (atau subfoldernya).")
         return
         
     print(f"\n[+] Ditemukan {len(music_files)} file lagu.")

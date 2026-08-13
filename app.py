@@ -16,7 +16,9 @@ except ImportError:
 
 try:
     from mutagen.mp3 import MP3
-    from mutagen.id3 import ID3, TIT2, TPE1, TCON, APIC, TALB, TDRC, error
+    from mutagen.id3 import ID3, TIT2, TPE1, TCON, APIC, TALB, TDRC, error as id3_error
+    from mutagen.mp4 import MP4, MP4Cover
+    from mutagen.flac import FLAC, Picture
 except ImportError:
     pass
 
@@ -321,8 +323,10 @@ class HyoMusicModernGUI:
     def _refresh_table(self):
         if not self.target_dir: return
         
-        # Gunakan rglob atau glob rekursif untuk mencari di subfolder (Python 3.5+)
-        self.music_files = glob.glob(os.path.join(self.target_dir, "**", "*.mp3"), recursive=True)
+        # Cari mp3, m4a, dan flac
+        self.music_files = []
+        for ext in ("*.mp3", "*.m4a", "*.flac"):
+            self.music_files.extend(glob.glob(os.path.join(self.target_dir, "**", ext), recursive=True))
         
         # Simpan semua row ke data internal
         self._all_rows = []
@@ -405,6 +409,99 @@ class HyoMusicModernGUI:
         # Update counter
         self.lbl_filter_count.configure(text=f"{len(filtered)} / {len(self._all_rows)} file")
                 
+    def _read_metadata(self, filepath):
+        """Membaca metadata dari file musik (MP3, M4A, FLAC)."""
+        ext = os.path.splitext(filepath)[1].lower()
+        meta = {"title": "", "artist": "", "album": "", "genre": "", "cover_data": None}
+        
+        try:
+            if ext == ".mp3":
+                audio = MP3(filepath, ID3=ID3)
+                if audio.tags:
+                    if 'TIT2' in audio: meta["title"] = audio.tags['TIT2'].text[0]
+                    if 'TPE1' in audio: meta["artist"] = audio.tags['TPE1'].text[0]
+                    if 'TALB' in audio: meta["album"] = audio.tags['TALB'].text[0]
+                    if 'TCON' in audio: meta["genre"] = audio.tags['TCON'].text[0]
+                    apic = audio.tags.getall('APIC')
+                    if apic: meta["cover_data"] = apic[0].data
+            elif ext == ".m4a":
+                audio = MP4(filepath)
+                if audio.tags:
+                    if '\xa9nam' in audio: meta["title"] = audio.tags['\xa9nam'][0]
+                    if '\xa9ART' in audio: meta["artist"] = audio.tags['\xa9ART'][0]
+                    if '\xa9alb' in audio: meta["album"] = audio.tags['\xa9alb'][0]
+                    if '\xa9gen' in audio: meta["genre"] = audio.tags['\xa9gen'][0]
+                    if 'covr' in audio: meta["cover_data"] = audio.tags['covr'][0]
+            elif ext == ".flac":
+                audio = FLAC(filepath)
+                if audio.tags:
+                    if 'title' in audio: meta["title"] = audio.tags['title'][0]
+                    if 'artist' in audio: meta["artist"] = audio.tags['artist'][0]
+                    if 'album' in audio: meta["album"] = audio.tags['album'][0]
+                    if 'genre' in audio: meta["genre"] = audio.tags['genre'][0]
+                if audio.pictures:
+                    meta["cover_data"] = audio.pictures[0].data
+        except Exception:
+            pass
+        return meta
+
+    def _inject_metadata(self, filepath, title, artist, album, year, genre, cover_path):
+        """Menulis metadata ke file musik sesuai ekstensinya (MP3/M4A/FLAC)."""
+        ext = os.path.splitext(filepath)[1].lower()
+        
+        if ext == ".mp3":
+            audio = MP3(filepath, ID3=ID3)
+            try: audio.delete()
+            except id3_error: pass
+            
+            audio.tags = ID3()
+            if title: audio.tags.add(TIT2(encoding=3, text=title))
+            if artist: audio.tags.add(TPE1(encoding=3, text=artist))
+            if album: audio.tags.add(TALB(encoding=3, text=album))
+            if year: audio.tags.add(TDRC(encoding=3, text=str(year)))
+            if genre: audio.tags.add(TCON(encoding=3, text=genre))
+            
+            if cover_path and os.path.exists(cover_path):
+                with open(cover_path, "rb") as img:
+                    audio.tags.add(APIC(encoding=3, mime='image/jpeg', type=3, desc='Cover', data=img.read()))
+            audio.save(v2_version=3)
+            
+        elif ext == ".m4a":
+            audio = MP4(filepath)
+            audio.delete()
+            if title: audio.tags['\xa9nam'] = [title]
+            if artist: audio.tags['\xa9ART'] = [artist]
+            if album: audio.tags['\xa9alb'] = [album]
+            if year: audio.tags['\xa9day'] = [str(year)]
+            if genre: audio.tags['\xa9gen'] = [genre]
+            
+            if cover_path and os.path.exists(cover_path):
+                with open(cover_path, "rb") as img:
+                    audio.tags['covr'] = [MP4Cover(img.read(), imageformat=MP4Cover.FORMAT_JPEG)]
+            audio.save()
+            
+        elif ext == ".flac":
+            audio = FLAC(filepath)
+            audio.delete()
+            if title: audio["title"] = title
+            if artist: audio["artist"] = artist
+            if album: audio["album"] = album
+            if year: audio["date"] = str(year)
+            if genre: audio["genre"] = genre
+            
+            if cover_path and os.path.exists(cover_path):
+                audio.clear_pictures()
+                pic = Picture()
+                pic.type = 3 # Front cover
+                pic.mime = "image/jpeg"
+                pic.desc = "Cover"
+                with open(cover_path, "rb") as img:
+                    pic.data = img.read()
+                audio.add_picture(pic)
+            audio.save()
+        else:
+            raise ValueError(f"Ekstensi {ext} tidak didukung")
+
     def on_tree_select(self, event):
         selected = self.tree.selection()
         if not selected: return
@@ -419,27 +516,22 @@ class HyoMusicModernGUI:
         self.photo_preview = None
         self.root.update()
         
-        # Load ID3
-        try:
-            audio = MP3(filepath, ID3=ID3)
-            if audio.tags:
-                if 'TIT2' in audio: self.inputs["Judul"].insert(0, audio.tags['TIT2'].text[0])
-                if 'TPE1' in audio: self.inputs["Artis"].insert(0, audio.tags['TPE1'].text[0])
-                if 'TALB' in audio: self.inputs["Album"].insert(0, audio.tags['TALB'].text[0])
-                if 'TCON' in audio: self.inputs["Genre"].insert(0, audio.tags['TCON'].text[0])
-                
-                apic = audio.tags.getall('APIC')
-                if apic:
-                    img_data = apic[0].data
-                    pil_img = Image.open(BytesIO(img_data)).convert("RGB")
-                    self.photo_preview = ctk.CTkImage(light_image=pil_img, size=(160, 160))
-                    self.lbl_cover.configure(image=self.photo_preview, text="")
-                else:
-                    self.lbl_cover.configure(text="Tidak ada Cover")
-            else:
-                self.lbl_cover.configure(text="Tidak ada Cover")
-        except:
-            self.lbl_cover.configure(text="Error load Cover")
+        # Load tags via util method
+        meta = self._read_metadata(filepath)
+        if meta["title"]: self.inputs["Judul"].insert(0, meta["title"])
+        if meta["artist"]: self.inputs["Artis"].insert(0, meta["artist"])
+        if meta["album"]: self.inputs["Album"].insert(0, meta["album"])
+        if meta["genre"]: self.inputs["Genre"].insert(0, meta["genre"])
+        
+        if meta["cover_data"]:
+            try:
+                pil_img = Image.open(BytesIO(meta["cover_data"])).convert("RGB")
+                self.photo_preview = ctk.CTkImage(light_image=pil_img, size=(160, 160))
+                self.lbl_cover.configure(image=self.photo_preview, text="")
+            except Exception:
+                self.lbl_cover.configure(text="Error render Cover")
+        else:
+            self.lbl_cover.configure(text="Tidak ada Cover")
             
         # Fallback to Treeview values if empty
         if not self.inputs["Judul"].get(): self.inputs["Judul"].insert(0, self.tree.item(filepath, "values")[2])
@@ -463,21 +555,8 @@ class HyoMusicModernGUI:
         genre = self.inputs["Genre"].get().strip()
         
         try:
-            audio = MP3(self.selected_file, ID3=ID3)
-            try: audio.delete()
-            except error: pass
-            
-            audio.tags = ID3()
-            if title: audio.tags.add(TIT2(encoding=3, text=title))
-            if artist: audio.tags.add(TPE1(encoding=3, text=artist))
-            if album: audio.tags.add(TALB(encoding=3, text=album))
-            if genre: audio.tags.add(TCON(encoding=3, text=genre))
-            
-            if self.current_cover_path:
-                with open(self.current_cover_path, "rb") as img:
-                    audio.tags.add(APIC(encoding=3, mime='image/jpeg', type=3, desc='Cover', data=img.read()))
-            
-            audio.save(v2_version=3)
+            # Inject tags using util method
+            self._inject_metadata(self.selected_file, title, artist, album, None, genre, self.current_cover_path)
             
             ext = os.path.splitext(self.selected_file)[1]
             new_filename = clean_filename(f"{artist} - {title}{ext}")
@@ -623,27 +702,17 @@ class HyoMusicModernGUI:
                     
             status_text = f"✅ Sukses ({source_label})"
             try:
-                audio = MP3(fp, ID3=ID3)
-                try: audio.delete()
-                except error: pass
+                db_album = cache_entry.get("album") if cache_entry else None
+                db_year = cache_entry.get("year") if cache_entry else None
+                db_genre = cache_entry.get("genre") if cache_entry else None
+                db_cover = cache_entry.get("local_cover") if cache_entry else None
                 
-                audio.tags = ID3()
-                audio.tags.add(TIT2(encoding=3, text=title))
-                audio.tags.add(TPE1(encoding=3, text=artist))
-                
-                if cache_entry:
-                    if cache_entry.get("album"): audio.tags.add(TALB(encoding=3, text=cache_entry["album"]))
-                    if cache_entry.get("year"): audio.tags.add(TDRC(encoding=3, text=str(cache_entry["year"])))
-                    if cache_entry.get("genre"): audio.tags.add(TCON(encoding=3, text=cache_entry["genre"]))
-                    if cache_entry.get("local_cover") and os.path.exists(cache_entry["local_cover"]):
-                        with open(cache_entry["local_cover"], "rb") as img:
-                            audio.tags.add(APIC(encoding=3, mime='image/jpeg', type=3, desc='Cover', data=img.read()))
-                    else:
-                        status_text = f"⚠️ Tanpa Cover ({source_label})"
-                else:
+                if cache_entry and not (db_cover and os.path.exists(db_cover)):
+                    status_text = f"⚠️ Tanpa Cover ({source_label})"
+                elif not cache_entry:
                     status_text = "⚠️ Metadata Tidak Ditemukan"
-                
-                audio.save(v2_version=3)
+                    
+                self._inject_metadata(fp, title, artist, db_album, db_year, db_genre, db_cover)
                 
                 ext = os.path.splitext(fp)[1]
                 new_fname = clean_filename(f"{artist} - {title}{ext}")

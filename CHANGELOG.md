@@ -2,6 +2,14 @@
 
 Semua perubahan yang signifikan pada proyek "Hyo Music Filter" akan dicatat dalam file ini.
 
+## [v1.5.0] - 2026-08-13
+### Ditambahkan
+- **Dukungan M4A & FLAC**: Aplikasi sekarang dapat membaca, memproses, dan menyuntikkan metadata (serta cover art) untuk file berekstensi `.m4a` dan `.flac`, tidak lagi terbatas pada `.mp3`.
+- Injeksi metadata yang lebih aman dan modular di `app.py` menggunakan metode utilitas khusus.
+
+### Diperbaiki
+- Konsolidasi logika pencarian file di CLI (`main.py` dan `fetch_metadata.py`) agar otomatis mendeteksi MP3, M4A, dan FLAC di subfolder.
+
 ## [v1.4.0] - 2026-08-13
 ### Ditambahkan
 - **Recursive Directory Scan**: Sekarang aplikasi membaca file musik tidak hanya di folder utama, tapi juga di semua subfolder di dalamnya secara otomatis.
