@@ -623,15 +623,14 @@ class HyoMusicModernGUI:
             pass
         return None
 
-    def _fetch_from_spotify(self, artist, title, cover_dir):
-        """Coba cari metadata dari Spotify sebagai fallback. Return cache_entry atau None."""
+    def _fetch_from_musicbrainz(self, artist, title, cover_dir):
+        """Coba cari metadata dari MusicBrainz sebagai fallback. Return cache_entry atau None."""
         try:
-            from spotify_client import is_configured, search_track
-            if not is_configured():
-                return None
+            from musicbrainz_client import search_track
             result = search_track(artist, title)
             if not result:
                 return None
+                
             cover_path = None
             if result.get("cover_url"):
                 safe_name = "".join([c for c in f"{result['artist']} - {result['title']}" if c.isalnum() or c==' ']).rstrip()
@@ -639,11 +638,12 @@ class HyoMusicModernGUI:
                 if not os.path.exists(cover_path):
                     img_data = requests.get(result["cover_url"], timeout=10).content
                     with open(cover_path, "wb") as f: f.write(img_data)
+                    
             return {
                 "artist": result.get("artist"), "title": result.get("title"),
                 "album": result.get("album"), "year": result.get("year"),
                 "genre": result.get("genre"), "local_cover": cover_path,
-                "source": "Spotify"
+                "source": "MusicBrainz"
             }
         except Exception:
             pass
@@ -683,25 +683,25 @@ class HyoMusicModernGUI:
             cache_entry = self.cache_db.get(key)
             source_label = "Cache"
             
-            # Cascade: Cache → iTunes → Spotify (Lengkapi Cover)
+            # Cascade: Cache → iTunes → MusicBrainz (Lengkapi Cover)
             if not cache_entry:
                 cache_entry = self._fetch_from_itunes(artist, title, cover_dir)
                 if cache_entry:
                     source_label = "iTunes"
                     
-                    # Jika iTunes sukses TAPI tidak ada cover, coba cari cover-nya di Spotify!
+                    # Jika iTunes sukses TAPI tidak ada cover, coba cari cover-nya di MusicBrainz!
                     if not cache_entry.get("local_cover"):
-                        spotify_data = self._fetch_from_spotify(artist, title, cover_dir)
-                        if spotify_data and spotify_data.get("local_cover"):
-                            cache_entry["local_cover"] = spotify_data["local_cover"]
-                            source_label = "iTunes + Spotify"
+                        mb_data = self._fetch_from_musicbrainz(artist, title, cover_dir)
+                        if mb_data and mb_data.get("local_cover"):
+                            cache_entry["local_cover"] = mb_data["local_cover"]
+                            source_label = "iTunes + MusicBrainz"
                             
                     self.cache_db[key] = cache_entry
                     
             if not cache_entry:
-                cache_entry = self._fetch_from_spotify(artist, title, cover_dir)
+                cache_entry = self._fetch_from_musicbrainz(artist, title, cover_dir)
                 if cache_entry:
-                    source_label = "Spotify"
+                    source_label = "MusicBrainz"
                     self.cache_db[key] = cache_entry
                     
             status_text = f"✅ Sukses ({source_label})"

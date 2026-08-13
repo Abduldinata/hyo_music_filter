@@ -2,17 +2,21 @@
 
 Semua perubahan yang signifikan pada proyek "Hyo Music Filter" akan dicatat dalam file ini.
 
+## [v1.5.3] - 2026-08-13
+### Diubah
+- **Migrasi dari Spotify ke MusicBrainz**: Karena Spotify Web API kini mewajibkan akun Premium, aplikasi sepenuhnya bermigrasi menggunakan API MusicBrainz dan Cover Art Archive sebagai sistem Fallback. Kelebihannya: 100% gratis, database open-source, dan **tidak perlu lagi repot mengatur file `.env` maupun API Key**. File konfigurasi rahasia telah dihapus.
+- **Hybrid Pencarian Cover**: Jika iTunes berhasil menemukan metadata lagu namun tidak memiliki gambar cover, aplikasi otomatis mencari cover tersebut di MusicBrainz.
+
 ## [v1.5.2] - 2026-08-13
 ### Diubah
 - **UI Filter yang Lebih Rapi**: Mengganti deretan tombol filter yang memakan tempat menjadi sebuah Dropdown (OptionMenu) yang ringkas di sebelah kanan kotak pencarian.
-- **Pencarian Cover Lanjutan**: Jika iTunes berhasil menemukan metadata lagu namun tidak memiliki gambar *cover art*, aplikasi kini akan secara otomatis melanjutkan pencarian gambar cover ke Spotify untuk melengkapinya (Hybrid: "iTunes + Spotify").
 
 ### Diperbaiki (Bug Fixes)
 - Penanganan error khusus untuk bug *"can't sync to MPEG frame"* (karena file korup atau file video MP4 yang di-rename menjadi `.mp3` tanpa proses konversi). File tersebut kini ditandai dengan jelas sebagai `❌ File Korup/Bukan MP3 Asli` agar mudah diidentifikasi.
 
 ## [v1.5.1] - 2026-08-13
 ### Ditambahkan
-- **Fitur Auto-Correct Typo**: Jika nama file memiliki salah eja (typo) seperti "Hindiya Kita ke dana", aplikasi sekarang akan otomatis menggunakan ejaan resmi yang dikembalikan oleh iTunes/Spotify ("Hindia - Kita ke sana") untuk ID3 Tag dan nama file akhir. 
+- **Fitur Auto-Correct Typo**: Jika nama file memiliki salah eja (typo), aplikasi sekarang akan otomatis menggunakan ejaan resmi yang dikembalikan oleh iTunes/MusicBrainz untuk ID3 Tag dan nama file akhir. 
 
 ## [v1.5.0] - 2026-08-13
 ### Ditambahkan

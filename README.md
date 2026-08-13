@@ -1,15 +1,15 @@
 # Hyo Music Filter
 
-Hyo Music Filter adalah utility tool berbasis Regex tingkat lanjut yang mengotomatisasi proses perapian file musik unduhan. Aplikasi ini membersihkan nama file dari "kata-kata sampah" (seperti "official video", "lyric", dll), mengambil metadata dan cover album resmi dari iTunes API & Spotify API, serta menyuntikkan ID3 Tags tersebut ke dalam file `.mp3` secara permanen.
+Hyo Music Filter adalah utility tool berbasis Regex tingkat lanjut yang mengotomatisasi proses perapian file musik unduhan. Aplikasi ini membersihkan nama file dari "kata-kata sampah" (seperti "official video", "lyric", dll), mengambil metadata dan cover album resmi dari iTunes API & MusicBrainz, serta menyuntikkan ID3 Tags tersebut ke dalam file musik secara permanen.
 
 ## Fitur Utama
 
 - **Smart Renamer:** Mengubah format nama file musik yang berantakan menjadi rapi (contoh: `Artis - Judul.mp3`).
-- **Metadata Fetcher:** Mendownload Genre dan Foto Cover Album resolusi tinggi secara otomatis dari Apple iTunes, dengan fallback ke Spotify.
-- **ID3 Tag Injector:** Menulis Artist, Title, Album, Genre, dan Cover Image ke dalam properti file musik secara permanen.
+- **Metadata Fetcher:** Mendownload Genre dan Foto Cover Album resolusi tinggi secara otomatis dari Apple iTunes, dengan fallback ke **MusicBrainz & Cover Art Archive** (100% Gratis, tanpa API Key).
+- **ID3 Tag Injector:** Menulis Artist, Title, Album, Genre, dan Cover Image ke dalam properti file musik secara permanen (Mendukung MP3, M4A, dan FLAC).
 - **GUI Modern & CLI:** Dapat digunakan melalui aplikasi GUI (Dark Mode) yang dibekali editor manual, maupun secara CLI (Command Line).
 - **Progress Bar & Statistik:** Menampilkan progress real-time saat pemrosesan massal, lengkap dengan ringkasan akhir (sukses/gagal/skip).
-- **Filter & Search:** Tombol filter berdasarkan status (Sukses, Gagal Regex, Tanpa Cover, Belum Proses) dan search box untuk pencarian cepat.
+- **Filter & Search:** Dropdown filter berdasarkan status (Sukses, Gagal Regex, Tanpa Cover, Belum Proses) dan search box untuk pencarian cepat.
 - **Sort A-Z / Z-A:** Mengurutkan tabel berdasarkan artis dan judul secara ascending atau descending.
 
 ## Persyaratan (Requirements)
@@ -19,26 +19,10 @@ Pastikan sistem Anda telah terinstal **Python 3.8** atau yang lebih baru.
 Install pustaka Python (dependencies) yang dibutuhkan:
 
 ```bash
-pip install mutagen requests pillow customtkinter python-dotenv
+pip install mutagen requests pillow customtkinter
 ```
 
-## Setup Spotify API (Opsional)
-
-Jika iTunes tidak menemukan lagu, aplikasi bisa otomatis mencari di Spotify sebagai fallback. Fitur ini **opsional** — aplikasi tetap berjalan normal tanpa konfigurasi ini.
-
-1. Buka [Spotify Developer Dashboard](https://developer.spotify.com/dashboard) dan buat app baru.
-2. Salin file `.env.example` menjadi `.env`:
-   ```bash
-   cp .env.example .env
-   ```
-3. Buka file `.env` dan isi dengan kredensial dari Spotify Dashboard:
-   ```env
-   SPOTIFY_CLIENT_ID=your_client_id_here
-   SPOTIFY_CLIENT_SECRET=your_client_secret_here
-   ```
-4. Selesai. Aplikasi akan otomatis mendeteksi konfigurasi saat dijalankan.
-
-> **Catatan:** File `.env` berisi data rahasia dan **tidak akan ter-commit** ke Git (sudah diproteksi oleh `.gitignore`).
+*(Tidak perlu konfigurasi API Key tambahan, semua berjalan otomatis dan gratis).*
 
 ## Cara Penggunaan
 
@@ -106,9 +90,8 @@ hyo_music_filter/
 | Masalah | Solusi |
 |---------|--------|
 | Proses gagal (Error) | Pastikan file `.mp3` tidak sedang diputar oleh aplikasi lain (Groove Music, VLC, dll). |
-| Lagu tidak ditemukan di iTunes/Spotify | Pastikan nama file awal memiliki Artis dan Judul yang cukup jelas. Gunakan Manual Editor jika perlu. |
+| Lagu tidak ditemukan di iTunes/MusicBrainz | Pastikan nama file awal memiliki Artis dan Judul yang cukup jelas. Gunakan Manual Editor jika perlu. |
 | Icon tidak muncul di taskbar | Pastikan file `icon/icon.ico` ada. Jalankan `app.py` langsung (bukan dari IDE). |
-| Spotify tidak bekerja | Pastikan `.env` sudah terisi dengan Client ID dan Client Secret yang benar. |
 
 ## Lisensi
 
