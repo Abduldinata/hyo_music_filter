@@ -22,7 +22,20 @@ Install pustaka Python (dependencies) yang dibutuhkan:
 pip install mutagen requests pillow customtkinter
 ```
 
-*(Tidak perlu konfigurasi API Key tambahan, semua berjalan otomatis dan gratis).*
+## Setup API Key Opsional (Direkomendasikan)
+
+Hyo Music Filter berjalan 100% gratis secara *default* menggunakan parser lokal dan MusicBrainz. Namun, untuk akurasi maksimal (mengoreksi typo parah, menebak lagu dari nama file acak), Anda bisa menghidupkan **Gemini AI Engine**.
+
+1. Buat API Key gratis di [Google AI Studio](https://aistudio.google.com/app/apikey).
+2. Salin file `.env.example` menjadi `.env`:
+   ```bash
+   cp .env.example .env
+   ```
+3. Isi `GEMINI_API_KEY` di dalam file `.env`:
+   ```env
+   GEMINI_API_KEY=AIzaSy...
+   ```
+4. Selesai. Aplikasi akan otomatis mendeteksi Gemini dan menjadikannya sebagai "Otak" utama saat Auto-Fix berjalan.
 
 ## Cara Penggunaan
 
@@ -72,7 +85,8 @@ hyo_music_filter/
 ├── app.py              # Aplikasi GUI utama (CustomTkinter)
 ├── main.py             # CLI: ID3 Injector & Smart Renamer (Offline)
 ├── fetch_metadata.py   # CLI: iTunes Metadata Fetcher (Online)
-├── spotify_client.py   # Modul Spotify Web API client
+├── musicbrainz_client.py # Modul MusicBrainz & Cover Art Archive
+├── gemini_client.py    # Modul Google Gemini AI (Opsional)
 ├── junk_words.txt      # Kamus kata-kata sampah yang bisa diedit
 ├── icon/
 │   ├── icon.png        # Icon aplikasi (source)

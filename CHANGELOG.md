@@ -2,6 +2,13 @@
 
 Semua perubahan yang signifikan pada proyek "Hyo Music Filter" akan dicatat dalam file ini.
 
+## [v1.7.0] - 2026-08-13
+### Ditambahkan
+- **Gemini AI Core Engine (Opsional)**: Aplikasi sekarang mendukung integrasi dengan Google Gemini AI (menggunakan model `gemini-1.5-flash` gratis) untuk mem-parsing dan memperbaiki nama file yang sangat kotor. 
+  - Jika Gemini API Key disediakan di `.env`, AI akan memproses nama file sebelum mencarinya di iTunes/MusicBrainz. Ini memecahkan masalah "Gagal Regex" untuk file yang tidak memiliki pola standar.
+  - Jika tidak ada API Key, aplikasi tetap bekerja 100% normal menggunakan parser Regex lokal.
+- File `.env` dan `.env.example` ditambahkan kembali untuk menampung konfigurasi opsional ini secara aman.
+
 ## [v1.6.1] - 2026-08-13
 ### Diperbaiki
 - **Solusi untuk File Korup (MPEG Sync Error)**: Saat pengguna memproses file yang korup (contohnya file MP4 video yang di-rename menjadi `.mp3` secara paksa tanpa konversi), library akan menolak menyuntikkan ID3 tag. Sekarang, alih-alih gagal total, aplikasi akan menampilkan opsi cerdas: aplikasi akan **tetap me-rename nama file fisiknya** menjadi rapi (sesuai artis/judul) meskipun metadatanya tidak dapat disuntikkan. File ini akan diberi status `⚠️ Rename Saja (File Korup)`.

@@ -80,12 +80,22 @@ def main():
         
         # Ekstrak artis dan judul menggunakan logika Regex yang SAMA PERSIS dengan main.py
         parsed = parse_filename(filepath)
-        if parsed:
-            artist = parsed.get("artist", "")
-            title = parsed.get("title", "")
-        else:
-            # Fallback jika Regex gagal total
-            artist = ""
+        artist = parsed.get("artist", "") if parsed else ""
+        title = parsed.get("title", "") if parsed else ""
+        
+        # Tambahan AI Parsing jika tersedia
+        try:
+            from gemini_client import is_configured, parse_filename_with_ai
+            if is_configured():
+                ai_parsed = parse_filename_with_ai(filename)
+                if ai_parsed:
+                    artist = ai_parsed["artist"]
+                    title = ai_parsed["title"]
+        except Exception:
+            pass
+            
+        if not title:
+            # Fallback kotor jika semuanya gagal
             title = os.path.splitext(filename)[0]
         
         if not title:

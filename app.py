@@ -737,20 +737,38 @@ class HyoMusicModernGUI:
                 self.root.after(0, self._update_progress, idx, total, f"⏭️ Skip (File sudah lengkap): {fname}", stats)
                 continue
                 
+            # 1. Gunakan Regex lokal dulu sebagai dasar
             parsed = parse_filename(fp)
             
-            if not parsed:
+            artist = parsed.get('artist', '') if parsed else ''
+            title = parsed.get('title', '') if parsed else ''
+            
+            # 2. Jika Gemini dikonfigurasi, biarkan AI yang mem-parsing nama file
+            try:
+                from gemini_client import is_configured, parse_filename_with_ai
+                if is_configured():
+                    stats = f"✅ {count_success}  ⏭️ {count_skip}  ❌ {count_fail}"
+                    self.root.after(0, self._update_progress, idx, total, f"[{idx}/{total}] 🤖 AI Parsing: {fname[:20]}...", stats)
+                    
+                    ai_parsed = parse_filename_with_ai(fname)
+                    if ai_parsed:
+                        artist = ai_parsed["artist"]
+                        title = ai_parsed["title"]
+                        if ai_parsed.get("album"): parsed["album"] = ai_parsed["album"]
+                        if ai_parsed.get("genre"): parsed["genre"] = ai_parsed["genre"]
+                        # AI sangat akurat, jadi kalau tadinya regex gagal (parsed = None), 
+                        # kita hidupkan kembali dengan data AI.
+                        if not parsed:
+                            parsed = ai_parsed
+            except Exception:
+                pass
+            
+            if not parsed or not artist or not title:
                 count_skip += 1
                 stats = f"✅ {count_success}  ⏭️ {count_skip}  ❌ {count_fail}"
-                self.root.after(0, self._update_progress, idx, total, f"⏭️ Skip (Regex gagal): {fname}", stats)
-                self.root.after(0, self._update_row, fp, fp, fname, "", "", "❌ Gagal Regex")
-                continue
-                
-            artist, title = parsed.get('artist', ''), parsed.get('title', '')
-            if not artist or not title:
-                count_skip += 1
-                stats = f"✅ {count_success}  ⏭️ {count_skip}  ❌ {count_fail}"
-                self.root.after(0, self._update_progress, idx, total, f"⏭️ Skip (data kosong): {fname}", stats)
+                self.root.after(0, self._update_progress, idx, total, f"⏭️ Skip (Gagal Parsing): {fname}", stats)
+                if not parsed:
+                    self.root.after(0, self._update_row, fp, fp, fname, "", "", "❌ Gagal Regex & AI")
                 continue
             
             stats = f"✅ {count_success}  ⏭️ {count_skip}  ❌ {count_fail}"

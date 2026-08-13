@@ -135,17 +135,35 @@ def process_file(filepath, metadata_db):
         return
     
     parsed = parse_filename(filepath)
-    if not parsed:
+    
+    artist = parsed.get("artist", "") if parsed else ""
+    title = parsed.get("title", "") if parsed else ""
+    
+    # 2. Gunakan AI jika tersedia
+    try:
+        from gemini_client import is_configured, parse_filename_with_ai
+        if is_configured():
+            ai_parsed = parse_filename_with_ai(raw_filename)
+            if ai_parsed:
+                artist = ai_parsed["artist"]
+                title = ai_parsed["title"]
+                if not parsed:
+                    parsed = ai_parsed
+                else:
+                    if ai_parsed.get("album"): parsed["album"] = ai_parsed["album"]
+                    if ai_parsed.get("genre"): parsed["genre"] = ai_parsed["genre"]
+    except Exception:
+        pass
+        
+    if not parsed or not artist or not title:
         print("    [!] Gagal mem-parsing format penamaan. File ini dilewati.")
         return
 
-    artist = parsed.get("artist", "Unknown Artist")
-    title = parsed.get("title", "Unknown Title")
     album = parsed.get("album")
     year = parsed.get("year")
     lang = parsed.get("language")
 
-    print(f"    [REGEX] Artis: '{artist}' | Judul: '{title}'")
+    print(f"    [PARSER] Artis: '{artist}' | Judul: '{title}'")
 
     # 1. Lookup ke Database Lokal
     key = f"{artist.lower()}||{title.lower()}"
