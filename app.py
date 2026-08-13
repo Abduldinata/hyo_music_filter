@@ -113,7 +113,7 @@ def parse_filename(filename):
             
     return None
 
-def is_similar(str1, str2, threshold=0.75):
+def is_similar(str1, str2, threshold=0.60):
     """Cek apakah dua string mirip (fuzzy match)."""
     if not str1 or not str2:
         return False
@@ -824,6 +824,7 @@ class HyoMusicModernGUI:
                     
                     ai_parsed = parse_filename_with_ai(fname)
                     if ai_parsed:
+                        print(f"    [GEMINI] Hasil AI: {ai_parsed['artist']} - {ai_parsed['title']}")
                         artist = ai_parsed["artist"]
                         title = ai_parsed["title"]
                         if ai_parsed.get("album"): parsed["album"] = ai_parsed["album"]
@@ -854,14 +855,16 @@ class HyoMusicModernGUI:
             if not cache_entry:
                 cache_entry = self._fetch_from_itunes(artist, title, cover_dir)
                 if cache_entry:
-                    # VALIDASI KEMIRIPAN
+                    # VALIDASI KEMIRIPAN (Sudah diturunkan jadi 60%)
                     if not is_similar(artist, cache_entry["artist"]) or not is_similar(title, cache_entry["title"]):
+                        print(f"    [ITUNES] Ditolak karena beda jauh: Asli '{artist} - {title}' vs API '{cache_entry['artist']} - {cache_entry['title']}'")
                         cache_entry = None # Tolak jika hasilnya terlalu berbeda (bukan lagu yang sama)
                     else:
                         source_label = "iTunes"
                         
                         # Jika iTunes sukses TAPI tidak ada cover, coba cari cover-nya di MusicBrainz!
                         if not cache_entry.get("local_cover"):
+                            time.sleep(1.5) # Jeda agar tidak kena rate limit MusicBrainz
                             mb_data = self._fetch_from_musicbrainz(artist, title, cover_dir)
                             if mb_data and mb_data.get("local_cover"):
                                 cache_entry["local_cover"] = mb_data["local_cover"]
@@ -870,10 +873,12 @@ class HyoMusicModernGUI:
                         self.cache_db[key] = cache_entry
                     
             if not cache_entry:
+                time.sleep(1.5) # Jeda amankan rate limit
                 cache_entry = self._fetch_from_musicbrainz(artist, title, cover_dir)
                 if cache_entry:
                     # VALIDASI KEMIRIPAN
                     if not is_similar(artist, cache_entry["artist"]) or not is_similar(title, cache_entry["title"]):
+                        print(f"    [MB] Ditolak karena beda jauh: Asli '{artist} - {title}' vs API '{cache_entry['artist']} - {cache_entry['title']}'")
                         cache_entry = None
                     else:
                         source_label = "MusicBrainz"

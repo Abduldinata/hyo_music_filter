@@ -37,7 +37,7 @@ def clean_filename(filename):
     """Membersihkan karakter ilegal pada OS Windows untuk nama file baru."""
     return re.sub(r'[\\/*?:"<>|]', "", filename)
 
-def is_similar(str1, str2, threshold=0.75):
+def is_similar(str1, str2, threshold=0.60):
     """Cek apakah dua string mirip (fuzzy match)."""
     if not str1 or not str2:
         return False

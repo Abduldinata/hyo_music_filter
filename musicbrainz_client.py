@@ -12,7 +12,7 @@ import time
 
 # MusicBrainz mewajibkan User-Agent khusus agar tidak di-banned
 HEADERS = {
-    "User-Agent": "HyoMusicFilter/1.5 ( https://github.com/Abduldinata/hyo_music_filter )"
+    "User-Agent": "HyoMusicFilter/1.5.0 ( abdul.dinata557@gmail.com )"
 }
 
 def search_track(artist, title):
@@ -99,8 +99,8 @@ def search_track(artist, title):
             except Exception:
                 pass # Abaikan jika cover gagal diambil
                 
-        # MusicBrainz rate limit: 1 request per detik
-        time.sleep(1)
+        # MusicBrainz rate limit: wajib jeda 1 detik tiap request
+        time.sleep(1.2)
         
         return {
             "artist": track_artist,
@@ -112,5 +112,5 @@ def search_track(artist, title):
         }
         
     except Exception as e:
-        print(f"[MusicBrainz] Error: {e}")
+        print(f"[MusicBrainz] Error request api: {e}")
         return None

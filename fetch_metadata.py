@@ -6,7 +6,7 @@ import requests
 import difflib
 from main import parse_filename # Menggunakan fungsi parser pintar yang sama dengan main.py agar 100% sinkron!
 
-def is_similar(str1, str2, threshold=0.75):
+def is_similar(str1, str2, threshold=0.60):
     if not str1 or not str2: return False
     return difflib.SequenceMatcher(None, str1.lower(), str2.lower()).ratio() >= threshold
 
