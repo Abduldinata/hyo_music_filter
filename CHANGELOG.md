@@ -2,6 +2,10 @@
 
 Semua perubahan yang signifikan pada proyek "Hyo Music Filter" akan dicatat dalam file ini.
 
+## [v1.5.1] - 2026-08-13
+### Ditambahkan
+- **Fitur Auto-Correct Typo**: Jika nama file memiliki salah eja (typo) seperti "Hindiya Kita ke dana", aplikasi sekarang akan otomatis menggunakan ejaan resmi yang dikembalikan oleh iTunes/Spotify ("Hindia - Kita ke sana") untuk ID3 Tag dan nama file akhir. 
+
 ## [v1.5.0] - 2026-08-13
 ### Ditambahkan
 - **Dukungan M4A & FLAC**: Aplikasi sekarang dapat membaca, memproses, dan menyuntikkan metadata (serta cover art) untuk file berekstensi `.m4a` dan `.flac`, tidak lagi terbatas pada `.mp3`.

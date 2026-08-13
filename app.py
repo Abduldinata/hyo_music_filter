@@ -707,26 +707,30 @@ class HyoMusicModernGUI:
                 db_genre = cache_entry.get("genre") if cache_entry else None
                 db_cover = cache_entry.get("local_cover") if cache_entry else None
                 
+                # AUTO-CORRECT TYPO: Gunakan ejaan resmi dari API jika ada
+                final_artist = cache_entry.get("artist") if cache_entry and cache_entry.get("artist") else artist
+                final_title = cache_entry.get("title") if cache_entry and cache_entry.get("title") else title
+                
                 if cache_entry and not (db_cover and os.path.exists(db_cover)):
                     status_text = f"⚠️ Tanpa Cover ({source_label})"
                 elif not cache_entry:
                     status_text = "⚠️ Metadata Tidak Ditemukan"
                     
-                self._inject_metadata(fp, title, artist, db_album, db_year, db_genre, db_cover)
+                self._inject_metadata(fp, final_title, final_artist, db_album, db_year, db_genre, db_cover)
                 
                 ext = os.path.splitext(fp)[1]
-                new_fname = clean_filename(f"{artist} - {title}{ext}")
+                new_fname = clean_filename(f"{final_artist} - {final_title}{ext}")
                 directory = os.path.dirname(fp)
                 new_fp = os.path.join(directory, new_fname)
                 if fp != new_fp:
                     if os.path.exists(new_fp):
-                        new_fname = clean_filename(f"{artist} - {title} (1){ext}")
+                        new_fname = clean_filename(f"{final_artist} - {final_title} (1){ext}")
                         new_fp = os.path.join(directory, new_fname)
                     os.rename(fp, new_fp)
                 
                 count_success += 1
                 rel_path = os.path.relpath(new_fp, self.target_dir)
-                self.root.after(0, self._update_row, fp, new_fp, rel_path, artist, title, status_text)
+                self.root.after(0, self._update_row, fp, new_fp, rel_path, final_artist, final_title, status_text)
             except Exception as e:
                 count_fail += 1
                 rel_path = os.path.relpath(fp, self.target_dir)

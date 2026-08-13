@@ -100,26 +100,30 @@ def process_file(filepath, metadata_db):
 
     print(f"    [REGEX] Artis: '{artist}' | Judul: '{title}'")
 
-    # 1. Lookup ke Database Lokal (Cepat & Tanpa Internet)
+    # 1. Lookup ke Database Lokal
     key = f"{artist.lower()}||{title.lower()}"
     db_meta = metadata_db.get(key)
+    
+    # AUTO-CORRECT TYPO
+    final_artist = artist
+    final_title = title
     
     if db_meta:
         genre = db_meta.get("genre")
         cover_path = db_meta.get("local_cover")
+        if db_meta.get("artist"): final_artist = db_meta["artist"]
+        if db_meta.get("title"): final_title = db_meta["title"]
+        
         if not album and db_meta.get("album"):
             album = db_meta["album"]
         if not year and db_meta.get("year"):
-            # Pastikan tahun adalah integer
-            try:
-                year = int(str(db_meta["year"])[:4])
-            except ValueError:
-                pass
-        print(f"    [DB] Data ditemukan! Genre: {genre}")
+            try: year = int(str(db_meta["year"])[:4])
+            except ValueError: pass
+        print(f"    [DB] Data ditemukan! Auto-correct: {final_artist} - {final_title}")
     else:
         genre = None
         cover_path = None
-        print("    [DB] Data TIDAK ditemukan di cache lokal. Melanjutkan dengan tag dasar.")
+        print("    [DB] Data TIDAK ditemukan. Melanjutkan dengan ejaan awal.")
 
     # 2. Injeksi ID3 Tag (Mutagen)
     try:
@@ -129,8 +133,8 @@ def process_file(filepath, metadata_db):
             except id3_error: pass
             
             audio.tags = ID3()
-            if title: audio.tags.add(TIT2(encoding=3, text=title))
-            if artist: audio.tags.add(TPE1(encoding=3, text=artist))
+            if final_title: audio.tags.add(TIT2(encoding=3, text=final_title))
+            if final_artist: audio.tags.add(TPE1(encoding=3, text=final_artist))
             if album: audio.tags.add(TALB(encoding=3, text=album))
             if year: audio.tags.add(TDRC(encoding=3, text=str(year)))
             if genre: audio.tags.add(TCON(encoding=3, text=genre))
@@ -145,8 +149,8 @@ def process_file(filepath, metadata_db):
         elif ext == ".m4a":
             audio = MP4(filepath)
             audio.delete()
-            if title: audio.tags['\xa9nam'] = [title]
-            if artist: audio.tags['\xa9ART'] = [artist]
+            if final_title: audio.tags['\xa9nam'] = [final_title]
+            if final_artist: audio.tags['\xa9ART'] = [final_artist]
             if album: audio.tags['\xa9alb'] = [album]
             if year: audio.tags['\xa9day'] = [str(year)]
             if genre: audio.tags['\xa9gen'] = [genre]
@@ -161,8 +165,8 @@ def process_file(filepath, metadata_db):
         elif ext == ".flac":
             audio = FLAC(filepath)
             audio.delete()
-            if title: audio["title"] = title
-            if artist: audio["artist"] = artist
+            if final_title: audio["title"] = final_title
+            if final_artist: audio["artist"] = final_artist
             if album: audio["album"] = album
             if year: audio["date"] = str(year)
             if genre: audio["genre"] = genre
@@ -195,7 +199,7 @@ def process_file(filepath, metadata_db):
         return
             
     # 3. Rename File Fisik
-    new_filename = clean_filename(f"{artist} - {title}{ext}")
+    new_filename = clean_filename(f"{final_artist} - {final_title}{ext}")
     new_filepath = os.path.join(directory, new_filename)
     
     try:
