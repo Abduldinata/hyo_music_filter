@@ -5,6 +5,7 @@ import json
 import time
 import requests
 import threading
+import difflib
 from tkinter import filedialog, messagebox, ttk
 from io import BytesIO
 
@@ -112,6 +113,12 @@ def parse_filename(filename):
             
     return None
 
+def is_similar(str1, str2, threshold=0.75):
+    """Cek apakah dua string mirip (fuzzy match)."""
+    if not str1 or not str2:
+        return False
+    return difflib.SequenceMatcher(None, str1.lower(), str2.lower()).ratio() >= threshold
+
 class HyoMusicModernGUI:
     def __init__(self, root):
         self.root = root
@@ -161,7 +168,7 @@ class HyoMusicModernGUI:
         self.btn_folder = ctk.CTkButton(self.toolbar, text="📂 Pilih Folder", font=("Inter", 13, "bold"), command=self.load_folder)
         self.btn_folder.pack(side="left", padx=(0, 10))
         
-        self.btn_auto = ctk.CTkButton(self.toolbar, text="🚀 Auto-Fix (Smart)", font=("Inter", 13, "bold"), 
+        self.btn_auto = ctk.CTkButton(self.toolbar, text="🚀 Auto-Fix (Semua)", font=("Inter", 13, "bold"), 
                                       fg_color="#006400", hover_color="#008000", command=self.run_auto_fix)
         self.btn_auto.pack(side="left")
         
@@ -242,7 +249,8 @@ class HyoMusicModernGUI:
         self.tree_frame.pack(fill="both", expand=True, padx=15, pady=(0, 10))
         
         columns = ("file", "artist", "title", "status")
-        self.tree = ttk.Treeview(self.tree_frame, columns=columns, show="headings", style="Treeview")
+        # selectmode="extended" memungkinkan Ctrl+Click dan Shift+Click
+        self.tree = ttk.Treeview(self.tree_frame, columns=columns, show="headings", style="Treeview", selectmode="extended")
         self.tree.heading("file", text="Nama File Asli")
         self.tree.heading("artist", text="Artis (RegEx)")
         self.tree.heading("title", text="Judul (RegEx)")
@@ -517,7 +525,15 @@ class HyoMusicModernGUI:
 
     def on_tree_select(self, event):
         selected = self.tree.selection()
-        if not selected: return
+        if not selected:
+            self.btn_auto.configure(text="🚀 Auto-Fix (Semua)")
+            return
+            
+        # Update teks tombol Auto-Fix jika ada file terpilih
+        if len(selected) > 0:
+            self.btn_auto.configure(text=f"🚀 Auto-Fix ({len(selected)} Terpilih)")
+            
+        # Untuk panel Manual Editor (Kanan), hanya tampilkan file PERTAMA yang dipilih
         filepath = selected[0]
         self.selected_file = filepath
         
@@ -596,6 +612,17 @@ class HyoMusicModernGUI:
         if not self.music_files:
             messagebox.showwarning("Peringatan", "Tidak ada file musik untuk diproses.")
             return
+            
+        # Cek apakah ada file yang diselect di Treeview
+        selected_iids = self.tree.selection()
+        
+        # Buat daftar file yang akan diproses
+        files_to_process = []
+        if selected_iids:
+            files_to_process = list(selected_iids)
+        else:
+            files_to_process = self.music_files
+            
         self.btn_auto.configure(state="disabled", text="⏳ Memproses...")
         self.btn_folder.configure(state="disabled")
         
@@ -605,7 +632,7 @@ class HyoMusicModernGUI:
         self.lbl_progress_detail.configure(text="Mempersiapkan...")
         self.lbl_progress_stats.configure(text="")
         
-        threading.Thread(target=self._auto_fix_worker, daemon=True).start()
+        threading.Thread(target=self._auto_fix_worker, args=(files_to_process,), daemon=True).start()
 
     def _update_progress(self, current, total, detail_text, stats_text):
         """Update progress bar dan label dari main thread."""
@@ -666,16 +693,16 @@ class HyoMusicModernGUI:
             pass
         return None
         
-    def _auto_fix_worker(self):
+    def _auto_fix_worker(self, target_files):
         cover_dir = os.path.join(self.target_dir, "covers")
         os.makedirs(cover_dir, exist_ok=True)
         
-        total = len(self.music_files)
+        total = len(target_files)
         count_success = 0
         count_fail = 0
         count_skip = 0
         
-        for idx, fp in enumerate(self.music_files, 1):
+        for idx, fp in enumerate(target_files, 1):
             fname = os.path.basename(fp)
             
             # Cek status file di data internal
@@ -718,22 +745,30 @@ class HyoMusicModernGUI:
             if not cache_entry:
                 cache_entry = self._fetch_from_itunes(artist, title, cover_dir)
                 if cache_entry:
-                    source_label = "iTunes"
-                    
-                    # Jika iTunes sukses TAPI tidak ada cover, coba cari cover-nya di MusicBrainz!
-                    if not cache_entry.get("local_cover"):
-                        mb_data = self._fetch_from_musicbrainz(artist, title, cover_dir)
-                        if mb_data and mb_data.get("local_cover"):
-                            cache_entry["local_cover"] = mb_data["local_cover"]
-                            source_label = "iTunes + MusicBrainz"
-                            
-                    self.cache_db[key] = cache_entry
+                    # VALIDASI KEMIRIPAN
+                    if not is_similar(artist, cache_entry["artist"]) or not is_similar(title, cache_entry["title"]):
+                        cache_entry = None # Tolak jika hasilnya terlalu berbeda (bukan lagu yang sama)
+                    else:
+                        source_label = "iTunes"
+                        
+                        # Jika iTunes sukses TAPI tidak ada cover, coba cari cover-nya di MusicBrainz!
+                        if not cache_entry.get("local_cover"):
+                            mb_data = self._fetch_from_musicbrainz(artist, title, cover_dir)
+                            if mb_data and mb_data.get("local_cover"):
+                                cache_entry["local_cover"] = mb_data["local_cover"]
+                                source_label = "iTunes + MusicBrainz"
+                                
+                        self.cache_db[key] = cache_entry
                     
             if not cache_entry:
                 cache_entry = self._fetch_from_musicbrainz(artist, title, cover_dir)
                 if cache_entry:
-                    source_label = "MusicBrainz"
-                    self.cache_db[key] = cache_entry
+                    # VALIDASI KEMIRIPAN
+                    if not is_similar(artist, cache_entry["artist"]) or not is_similar(title, cache_entry["title"]):
+                        cache_entry = None
+                    else:
+                        source_label = "MusicBrainz"
+                        self.cache_db[key] = cache_entry
                     
             status_text = f"✅ Sukses ({source_label})"
             try:

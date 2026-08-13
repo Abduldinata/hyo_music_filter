@@ -3,7 +3,12 @@ import glob
 import json
 import time
 import requests
+import difflib
 from main import parse_filename # Menggunakan fungsi parser pintar yang sama dengan main.py agar 100% sinkron!
+
+def is_similar(str1, str2, threshold=0.75):
+    if not str1 or not str2: return False
+    return difflib.SequenceMatcher(None, str1.lower(), str2.lower()).ratio() >= threshold
 
 def main():
     print("="*60)
@@ -114,6 +119,13 @@ def main():
                     fetched_artist = item.get("artistName")
                     fetched_title = item.get("trackName")
                     
+                    # Validasi kemiripan
+                    if not is_similar(artist, fetched_artist) or not is_similar(title, fetched_title):
+                        print(f"    -> [DITOLAK] Hasil API terlalu berbeda ({fetched_artist} - {fetched_title}). Bukan lagu yang sama.")
+                        failed.append(filename)
+                        time.sleep(2)
+                        continue
+                        
                     # Ubah cover jadi HD (resolusi tinggi)
                     cover_url = item.get("artworkUrl100", "").replace("100x100bb.jpg", "600x600bb.jpg")
                     

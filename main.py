@@ -2,6 +2,7 @@ import os
 import glob
 import re
 import json
+import difflib
 try:
     from mutagen.mp3 import MP3
     from mutagen.id3 import ID3, TIT2, TPE1, TCON, APIC, TALB, TDRC, error as id3_error
@@ -35,6 +36,12 @@ PATTERNS = [
 def clean_filename(filename):
     """Membersihkan karakter ilegal pada OS Windows untuk nama file baru."""
     return re.sub(r'[\\/*?:"<>|]', "", filename)
+
+def is_similar(str1, str2, threshold=0.75):
+    """Cek apakah dua string mirip (fuzzy match)."""
+    if not str1 or not str2:
+        return False
+    return difflib.SequenceMatcher(None, str1.lower(), str2.lower()).ratio() >= threshold
 
 def parse_filename(filename):
     """Mengekstrak data dari nama file menggunakan daftar Regex bertingkat (Top-Down)."""
@@ -151,8 +158,12 @@ def process_file(filepath, metadata_db):
     if db_meta:
         genre = db_meta.get("genre")
         cover_path = db_meta.get("local_cover")
-        if db_meta.get("artist"): final_artist = db_meta["artist"]
-        if db_meta.get("title"): final_title = db_meta["title"]
+        
+        # Validasi sebelum Auto-Correct
+        db_artist = db_meta.get("artist")
+        db_title = db_meta.get("title")
+        if db_artist and is_similar(artist, db_artist): final_artist = db_artist
+        if db_title and is_similar(title, db_title): final_title = db_title
         
         if not album and db_meta.get("album"):
             album = db_meta["album"]

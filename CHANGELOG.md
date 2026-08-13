@@ -2,6 +2,13 @@
 
 Semua perubahan yang signifikan pada proyek "Hyo Music Filter" akan dicatat dalam file ini.
 
+## [v1.6.0] - 2026-08-13
+### Ditambahkan
+- **Batch Select Auto-Fix**: Sekarang pengguna dapat memproses (Auto-Fix) hanya file-file tertentu saja, alih-alih seluruh isi folder.
+  - Tahan tombol `Ctrl` atau `Shift` untuk memilih (blok) beberapa file pada tabel.
+  - Tombol Auto-Fix akan otomatis berubah menjadi `🚀 Auto-Fix (X Terpilih)` dan hanya akan mengunduh metadata + me-rename lagu-lagu yang kamu pilih saja.
+  - Jika tidak ada yang dipilih, tombol akan berbunyi `🚀 Auto-Fix (Semua)` dan memproses seluruh folder.
+
 ## [v1.5.4] - 2026-08-13
 ### Ditambahkan
 - **Smart Skip (Optimasi Performa)**: Aplikasi kini akan mengecek kelengkapan file musik (apakah sudah memiliki Artist, Title, dan Cover Art) *sebelum* memprosesnya. 
