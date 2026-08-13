@@ -2,6 +2,14 @@
 
 Semua perubahan yang signifikan pada proyek "Hyo Music Filter" akan dicatat dalam file ini.
 
+## [v1.8.0] - 2026-08-13
+### Ditambahkan
+- **Checklist Visual (Batch Select)**: Fitur "Batch Select" kini menggunakan kotak centang `[✔]` yang jauh lebih intuitif. 
+  - Pengguna dapat mengklik judul kolom `✔` untuk memilih/membatalkan semua lagu sekaligus (Check All / Uncheck All).
+  - Mengklik kotak pada setiap baris akan melakukan *toggle* (mencentang/menghapus centang) pada lagu tersebut.
+  - Opsi *extended select* (Ctrl/Shift-Click) pada Treeview tetap dipertahankan.
+- Tombol Auto-Fix akan secara otomatis memperbarui statusnya menjadi *"🚀 Auto-Fix (X Terpilih)"* dan hanya akan memproses lagu-lagu yang dicentang. Lagu yang telah sukses diproses akan dihilangkan centangnya secara otomatis.
+
 ## [v1.7.0] - 2026-08-13
 ### Ditambahkan
 - **Gemini AI Core Engine (Opsional)**: Aplikasi sekarang mendukung integrasi dengan Google Gemini AI (menggunakan model `gemini-1.5-flash` gratis) untuk mem-parsing dan memperbaiki nama file yang sangat kotor. 

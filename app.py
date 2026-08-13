@@ -248,18 +248,22 @@ class HyoMusicModernGUI:
         self.tree_frame = ctk.CTkFrame(self.frame_left)
         self.tree_frame.pack(fill="both", expand=True, padx=15, pady=(0, 10))
         
-        columns = ("file", "artist", "title", "status")
-        # selectmode="extended" memungkinkan Ctrl+Click dan Shift+Click
+        # Tambahkan kolom "check"
+        columns = ("check", "file", "artist", "title", "status")
+        # selectmode="extended" tetap ada buat kenyamanan
         self.tree = ttk.Treeview(self.tree_frame, columns=columns, show="headings", style="Treeview", selectmode="extended")
+        
+        self.tree.heading("check", text="✔", command=self.toggle_all_checks)
         self.tree.heading("file", text="Nama File Asli")
-        self.tree.heading("artist", text="Artis (RegEx)")
-        self.tree.heading("title", text="Judul (RegEx)")
+        self.tree.heading("artist", text="Artis (Tebakan)")
+        self.tree.heading("title", text="Judul (Tebakan)")
         self.tree.heading("status", text="Status Eksekusi")
         
-        self.tree.column("file", width=250)
-        self.tree.column("artist", width=120)
-        self.tree.column("title", width=180)
-        self.tree.column("status", width=140)
+        self.tree.column("check", width=40, anchor="center")
+        self.tree.column("file", width=230)
+        self.tree.column("artist", width=110)
+        self.tree.column("title", width=170)
+        self.tree.column("status", width=130)
         
         vsb = ttk.Scrollbar(self.tree_frame, orient="vertical", command=self.tree.yview)
         self.tree.configure(yscrollcommand=vsb.set)
@@ -267,7 +271,7 @@ class HyoMusicModernGUI:
         self.tree.pack(side="left", fill="both", expand=True)
         vsb.pack(side="right", fill="y")
         
-        self.tree.bind("<<TreeviewSelect>>", self.on_tree_select)
+        self.tree.bind("<ButtonRelease-1>", self.on_tree_click)
         
         # Panel Edit Kata Sampah (Junk Words)
         self.frame_junk = ctk.CTkFrame(self.frame_left, fg_color="#1e1e1e", corner_radius=8)
@@ -351,6 +355,8 @@ class HyoMusicModernGUI:
             
             parsed = parse_filename(fp)
             
+            chk = "☐"
+            
             # Jika sudah lengkap, pakai metadata bawaan file
             if is_complete:
                 artist = meta["artist"]
@@ -361,8 +367,9 @@ class HyoMusicModernGUI:
                 artist = parsed.get('artist', '') if parsed else ''
                 title = parsed.get('title', '') if parsed else ''
                 status = "⏳ Siap di-Auto Fix" if parsed else "❌ Gagal Regex (Edit Manual)"
+                if parsed: chk = "☑" # Otomatis dicentang untuk diproses!
                 
-            self._all_rows.append((fp, (fname, artist, title, status)))
+            self._all_rows.append((fp, (chk, fname, artist, title, status)))
             
         self.lbl_status.configure(text=f"Sukses memuat {len(self.music_files)} file.")
         
@@ -425,7 +432,19 @@ class HyoMusicModernGUI:
         
         # Render
         for iid, vals in filtered:
-            self.tree.insert("", "end", iid=iid, values=vals)
+            # Karena vals di _all_rows tidak punya check, kita beri default "☐"
+            # Cek dulu apakah dia punya 4 elemen (format lama) atau 5 elemen (format baru)
+            if len(vals) == 4:
+                chk = "☐"
+                # Otomatis centang jika file siap di-Auto Fix (belum lengkap)
+                if "⏳ Siap" in vals[3]:
+                    chk = "☑"
+                new_vals = (chk, vals[0], vals[1], vals[2], vals[3])
+                self.tree.insert("", "end", iid=iid, values=new_vals)
+            else:
+                self.tree.insert("", "end", iid=iid, values=vals)
+                
+        self._update_btn_auto_text()
         
         # Update counter
         self.lbl_filter_count.configure(text=f"{len(filtered)} / {len(self._all_rows)} file")
@@ -523,18 +542,67 @@ class HyoMusicModernGUI:
         else:
             raise ValueError(f"Ekstensi {ext} tidak didukung")
 
-    def on_tree_select(self, event):
-        selected = self.tree.selection()
-        if not selected:
-            self.btn_auto.configure(text="🚀 Auto-Fix (Semua)")
-            return
+    def toggle_all_checks(self):
+        """Toggle checklist untuk semua baris yang sedang tampil di layar."""
+        all_items = self.tree.get_children()
+        if not all_items: return
+        
+        # Cek status baris pertama untuk memutuskan mau check all atau uncheck all
+        first_val = self.tree.item(all_items[0], "values")[0]
+        new_chk = "☑" if first_val == "☐" else "☐"
+        
+        for iid in all_items:
+            vals = list(self.tree.item(iid, "values"))
+            vals[0] = new_chk
+            self.tree.item(iid, values=vals)
             
-        # Update teks tombol Auto-Fix jika ada file terpilih
-        if len(selected) > 0:
-            self.btn_auto.configure(text=f"🚀 Auto-Fix ({len(selected)} Terpilih)")
-            
-        # Untuk panel Manual Editor (Kanan), hanya tampilkan file PERTAMA yang dipilih
-        filepath = selected[0]
+            # Update data internal juga
+            for i, (all_iid, all_vals) in enumerate(self._all_rows):
+                if all_iid == iid:
+                    self._all_rows[i] = (all_iid, vals)
+                    break
+                    
+        self._update_btn_auto_text()
+
+    def on_tree_click(self, event):
+        """Menangani klik pada baris, baik untuk load metadata maupun toggle checklist."""
+        region = self.tree.identify("region", event.x, event.y)
+        iid = self.tree.identify_row(event.y)
+        
+        if not iid: return
+        
+        # Jika user mengklik tepat di kolom "check" (kolom #1)
+        if region == "cell":
+            column = self.tree.identify_column(event.x)
+            if column == "#1":
+                vals = list(self.tree.item(iid, "values"))
+                vals[0] = "☑" if vals[0] == "☐" else "☐"
+                self.tree.item(iid, values=vals)
+                
+                # Update data internal
+                for i, (all_iid, all_vals) in enumerate(self._all_rows):
+                    if all_iid == iid:
+                        self._all_rows[i] = (all_iid, vals)
+                        break
+                        
+                self._update_btn_auto_text()
+                
+        # Tetap tampilkan detail di panel kanan
+        self._load_details(iid)
+
+    def _update_btn_auto_text(self):
+        """Update teks tombol berdasarkan jumlah checklist yang tercentang."""
+        checked_count = 0
+        for item in self.tree.get_children():
+            if self.tree.item(item, "values")[0] == "☑":
+                checked_count += 1
+                
+        if checked_count > 0:
+            self.btn_auto.configure(text=f"🚀 Auto-Fix ({checked_count} Terpilih)")
+        else:
+            self.btn_auto.configure(text="🚀 Auto-Fix (Pilih Minimal 1)")
+
+    def _load_details(self, filepath):
         self.selected_file = filepath
         
         # Reset Panel
@@ -563,8 +631,10 @@ class HyoMusicModernGUI:
             self.lbl_cover.configure(text="Tidak ada Cover")
             
         # Fallback to Treeview values if empty
-        if not self.inputs["Judul"].get(): self.inputs["Judul"].insert(0, self.tree.item(filepath, "values")[2])
-        if not self.inputs["Artis"].get(): self.inputs["Artis"].insert(0, self.tree.item(filepath, "values")[1])
+        vals = self.tree.item(filepath, "values")
+        if vals:
+            if not self.inputs["Judul"].get(): self.inputs["Judul"].insert(0, vals[3])
+            if not self.inputs["Artis"].get(): self.inputs["Artis"].insert(0, vals[2])
         
     def browse_cover(self):
         if not self.selected_file: return
@@ -610,7 +680,7 @@ class HyoMusicModernGUI:
                 
             rel_path = os.path.relpath(new_filepath, self.target_dir)
             status_msg = "✅ SUKSES (Manual)" if metadata_success else "⚠️ Rename Saja (File Korup)"
-            self._update_row(self.selected_file, new_filepath, rel_path, artist, title, status_msg)
+            self._update_row(self.selected_file, new_filepath, "☑", rel_path, artist, title, status_msg)
             self.selected_file = new_filepath
             
             # Update list music_files agar tidak terputus
@@ -632,15 +702,15 @@ class HyoMusicModernGUI:
             messagebox.showwarning("Peringatan", "Tidak ada file musik untuk diproses.")
             return
             
-        # Cek apakah ada file yang diselect di Treeview
-        selected_iids = self.tree.selection()
-        
-        # Buat daftar file yang akan diproses
+        # Kumpulkan semua file yang dicentang (☑) dari _all_rows
         files_to_process = []
-        if selected_iids:
-            files_to_process = list(selected_iids)
-        else:
-            files_to_process = self.music_files
+        for iid, vals in self._all_rows:
+            if vals[0] == "☑":
+                files_to_process.append(iid)
+                
+        if not files_to_process:
+            messagebox.showwarning("Peringatan", "Tidak ada file yang dicentang (☑) untuk diproses.\n\nSilakan klik kotak '☐' pada baris lagu yang ingin Anda proses, atau klik judul kolom '✔' untuk mencentang semuanya.")
+            return
             
         self.btn_auto.configure(state="disabled", text="⏳ Memproses...")
         self.btn_folder.configure(state="disabled")
@@ -768,7 +838,7 @@ class HyoMusicModernGUI:
                 stats = f"✅ {count_success}  ⏭️ {count_skip}  ❌ {count_fail}"
                 self.root.after(0, self._update_progress, idx, total, f"⏭️ Skip (Gagal Parsing): {fname}", stats)
                 if not parsed:
-                    self.root.after(0, self._update_row, fp, fp, fname, "", "", "❌ Gagal Regex & AI")
+                    self.root.after(0, self._update_row, fp, fp, "☐", fname, "", "", "❌ Gagal Regex & AI")
                 continue
             
             stats = f"✅ {count_success}  ⏭️ {count_skip}  ❌ {count_fail}"
@@ -837,7 +907,7 @@ class HyoMusicModernGUI:
                 
                 count_success += 1
                 rel_path = os.path.relpath(new_fp, self.target_dir)
-                self.root.after(0, self._update_row, fp, new_fp, rel_path, final_artist, final_title, status_text)
+                self.root.after(0, self._update_row, fp, new_fp, "☐", rel_path, final_artist, final_title, status_text)
             except mutagen.MutagenError as e:
                 # Menangkap error spesifik "can't sync to MPEG frame"
                 # Tetap rename filenya agar setidaknya nama luarnya rapi
@@ -853,15 +923,15 @@ class HyoMusicModernGUI:
                         os.rename(fp, new_fp)
                     count_fail += 1
                     rel_path = os.path.relpath(new_fp, self.target_dir)
-                    self.root.after(0, self._update_row, fp, new_fp, rel_path, final_artist, final_title, "⚠️ Rename Saja (File Korup)")
+                    self.root.after(0, self._update_row, fp, new_fp, "☐", rel_path, final_artist, final_title, "⚠️ Rename Saja (File Korup)")
                 except Exception as ex:
                     count_fail += 1
                     rel_path = os.path.relpath(fp, self.target_dir)
-                    self.root.after(0, self._update_row, fp, fp, rel_path, final_artist, final_title, "❌ Error Total")
+                    self.root.after(0, self._update_row, fp, fp, "☐", rel_path, final_artist, final_title, "❌ Error Total")
             except Exception as e:
                 count_fail += 1
                 rel_path = os.path.relpath(fp, self.target_dir)
-                self.root.after(0, self._update_row, fp, fp, rel_path, artist, title, f"❌ Error: {str(e)[:30]}")
+                self.root.after(0, self._update_row, fp, fp, "☑", rel_path, artist, title, f"❌ Error: {str(e)[:30]}")
             
             # Update stats setelah proses file selesai
             stats = f"✅ {count_success}  ⏭️ {count_skip}  ❌ {count_fail}"
@@ -889,9 +959,9 @@ class HyoMusicModernGUI:
         )
         messagebox.showinfo("Selesai", summary)
 
-    def _update_row(self, old_id, new_id, new_fname, artist, title, status):
+    def _update_row(self, old_id, new_id, chk, new_fname, artist, title, status):
         # Update data internal _all_rows
-        new_vals = (new_fname, artist, title, status)
+        new_vals = (chk, new_fname, artist, title, status)
         for i, (iid, vals) in enumerate(self._all_rows):
             if iid == old_id:
                 self._all_rows[i] = (new_id, new_vals)
