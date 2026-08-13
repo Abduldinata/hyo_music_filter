@@ -6,6 +6,7 @@ dan mengembalikan tebakan Artist, Title, Album, dan Genre yang sangat akurat.
 
 import os
 import json
+import time
 from google import genai
 from google.genai import types
 
@@ -36,64 +37,75 @@ def _get_client():
 def parse_filename_with_ai(filename):
     """
     Menggunakan Gemini untuk mem-parsing nama file musik (dengan kemampuan Google Search).
+    Ditambahkan mekanisme retry untuk menangani Error 503 (High Demand).
     """
     if not is_configured():
         return None
         
-    try:
-        client = _get_client()
-        
-        system_instruction = (
-            "Kamu adalah asisten pakar metadata musik. "
-            "Tugasmu adalah menganalisis nama file musik yang berantakan dan menemukan Artist, Title, Album, dan Genre aslinya.\n"
-            "Gunakan GOOGLE SEARCH untuk memvalidasi nama file tersebut di internet jika kamu ragu! Cari liriknya atau info lagunya agar akurat.\n"
-            "Perbaiki typo atau salah eja (misal: 'Hindiya - Kita ke dana' menjadi 'Hindia - Kita ke sana', atau 'dongker - di bandung' menjadi judul yang benar jika memang beda).\n"
-            "Keluarkan output HANYA dalam format JSON dengan key berikut: 'artist', 'title', 'album', 'genre'. "
-            "Gunakan string kosong ('') jika kamu tidak bisa menemukan album atau genre-nya. "
-            "Jangan tambahkan markdown seperti ```json, cukup JSON murni."
-        )
-        
-        # Konfigurasi tools pencarian
-        config = types.GenerateContentConfig(
-            system_instruction=system_instruction,
-            temperature=0.1,
-            tools=[{"google_search": {}}] # MENGAKTIFKAN GOOGLE SEARCH!
-        )
-        
-        prompt = f"Analisis dan cari fakta tentang nama file musik ini: '{filename}'. Berikan output JSON murni."
-        
-        # Gunakan gemini-2.5-flash yang support JSON dan tools terbaru
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=prompt,
-            config=config
-        )
-        
-        text_output = response.text.strip()
-        
-        # Bersihkan jika Gemini membandel dan memberi markdown
-        if text_output.startswith("```json"):
-            text_output = text_output.replace("```json", "").replace("```", "").strip()
-        elif text_output.startswith("```"):
-            text_output = text_output.replace("```", "").strip()
+    client = _get_client()
+    
+    system_instruction = (
+        "Kamu adalah asisten pakar metadata musik. "
+        "Tugasmu adalah menganalisis nama file musik yang berantakan dan menemukan Artist, Title, Album, dan Genre aslinya.\n"
+        "Gunakan GOOGLE SEARCH untuk memvalidasi nama file tersebut di internet jika kamu ragu! Cari liriknya atau info lagunya agar akurat.\n"
+        "Perbaiki typo atau salah eja (misal: 'Hindiya - Kita ke dana' menjadi 'Hindia - Kita ke sana', atau 'dongker - di bandung' menjadi judul yang benar jika memang beda).\n"
+        "Keluarkan output HANYA dalam format JSON dengan key berikut: 'artist', 'title', 'album', 'genre'. "
+        "Gunakan string kosong ('') jika kamu tidak bisa menemukan album atau genre-nya. "
+        "Jangan tambahkan markdown seperti ```json, cukup JSON murni."
+    )
+    
+    # Konfigurasi tools pencarian
+    config = types.GenerateContentConfig(
+        system_instruction=system_instruction,
+        temperature=0.1,
+        tools=[{"google_search": {}}] # MENGAKTIFKAN GOOGLE SEARCH!
+    )
+    
+    prompt = f"Analisis dan cari fakta tentang nama file musik ini: '{filename}'. Berikan output JSON murni."
+    
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            # Gunakan gemini-2.5-flash yang support JSON dan tools terbaru
+            response = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=prompt,
+                config=config
+            )
             
-        # Parse JSON
-        data = json.loads(text_output)
-        
-        # Validasi output dasar
-        artist = data.get("artist", "").strip()
-        title = data.get("title", "").strip()
-        
-        if not artist or not title:
+            text_output = response.text.strip()
+            
+            # Bersihkan jika Gemini membandel dan memberi markdown
+            if text_output.startswith("```json"):
+                text_output = text_output.replace("```json", "").replace("```", "").strip()
+            elif text_output.startswith("```"):
+                text_output = text_output.replace("```", "").strip()
+                
+            # Parse JSON
+            data = json.loads(text_output)
+            
+            # Validasi output dasar
+            artist = data.get("artist", "").strip()
+            title = data.get("title", "").strip()
+            
+            if not artist or not title:
+                return None
+                
+            return {
+                "artist": artist,
+                "title": title,
+                "album": data.get("album", "").strip(),
+                "genre": data.get("genre", "").strip()
+            }
+            
+        except Exception as e:
+            error_msg = str(e)
+            if "503" in error_msg or "UNAVAILABLE" in error_msg or "high demand" in error_msg:
+                if attempt < max_retries - 1:
+                    print(f"[Gemini] Server sibuk (503). Mencoba ulang dalam 3 detik... (Percobaan {attempt+1}/{max_retries})")
+                    time.sleep(3)
+                    continue
+            print(f"[Gemini] Error mem-parsing '{filename}': {e}")
             return None
             
-        return {
-            "artist": artist,
-            "title": title,
-            "album": data.get("album", "").strip(),
-            "genre": data.get("genre", "").strip()
-        }
-        
-    except Exception as e:
-        print(f"[Gemini] Error mem-parsing '{filename}': {e}")
-        return None
+    return None

@@ -883,7 +883,7 @@ class HyoMusicModernGUI:
                         if not parsed:
                             parsed = ai_parsed
                     else:
-                        self.write_log("  └─ Gemini gagal menemukan lagu ini.")
+                        self.write_log("  └─ Gemini gagal menemukan lagu ini (atau server kepenuhan).")
             except Exception as e:
                 self.write_log(f"  └─ Error koneksi Gemini: {str(e)}")
             
