@@ -2,6 +2,13 @@
 
 Semua perubahan yang signifikan pada proyek "Hyo Music Filter" akan dicatat dalam file ini.
 
+## [v1.5.4] - 2026-08-13
+### Ditambahkan
+- **Smart Skip (Optimasi Performa)**: Aplikasi kini akan mengecek kelengkapan file musik (apakah sudah memiliki Artist, Title, dan Cover Art) *sebelum* memprosesnya. 
+  - File yang sudah lengkap otomatis ditandai `✅ Sudah Lengkap` di tabel.
+  - Proses Auto-Fix dan Fetch Metadata CLI akan langsung melewati file ini, menghemat kuota request API dan waktu eksekusi.
+- Filter baru di dropdown: `✅ Sudah Lengkap` untuk memudahkan menemukan file-file yang sudah sempurna.
+
 ## [v1.5.3] - 2026-08-13
 ### Diubah
 - **Migrasi dari Spotify ke MusicBrainz**: Karena Spotify Web API kini mewajibkan akun Premium, aplikasi sepenuhnya bermigrasi menggunakan API MusicBrainz dan Cover Art Archive sebagai sistem Fallback. Kelebihannya: 100% gratis, database open-source, dan **tidak perlu lagi repot mengatur file `.env` maupun API Key**. File konfigurasi rahasia telah dihapus.

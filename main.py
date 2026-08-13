@@ -95,6 +95,38 @@ def process_file(filepath, metadata_db):
     
     print(f"\n[>] Memproses: '{raw_filename}'")
     
+    # CEK METADATA LAMA: Jika Artist, Title, dan Cover sudah ada, lewati.
+    has_title = False
+    has_artist = False
+    has_cover = False
+    
+    try:
+        if ext == ".mp3":
+            audio = MP3(filepath, ID3=ID3)
+            if audio.tags:
+                has_title = 'TIT2' in audio
+                has_artist = 'TPE1' in audio
+                has_cover = len(audio.tags.getall('APIC')) > 0
+        elif ext == ".m4a":
+            audio = MP4(filepath)
+            if audio.tags:
+                has_title = '\xa9nam' in audio.tags
+                has_artist = '\xa9ART' in audio.tags
+                has_cover = 'covr' in audio.tags
+        elif ext == ".flac":
+            audio = FLAC(filepath)
+            if audio.tags:
+                has_title = 'title' in audio.tags
+                has_artist = 'artist' in audio.tags
+            if audio.pictures:
+                has_cover = True
+    except Exception:
+        pass
+        
+    if has_title and has_artist and has_cover:
+        print("    [✅] File sudah memiliki metadata dan cover art yang lengkap. Dilewati.")
+        return
+    
     parsed = parse_filename(filepath)
     if not parsed:
         print("    [!] Gagal mem-parsing format penamaan. File ini dilewati.")

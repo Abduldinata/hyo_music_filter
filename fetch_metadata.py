@@ -45,6 +45,33 @@ def main():
     
     for idx, filepath in enumerate(music_files, 1):
         filename = os.path.basename(filepath)
+        ext = os.path.splitext(filename)[1].lower()
+        
+        # Cek apakah file sudah punya Artist, Title, dan Cover Art
+        is_complete = False
+        try:
+            if ext == ".mp3":
+                from mutagen.mp3 import MP3
+                from mutagen.id3 import ID3
+                audio = MP3(filepath, ID3=ID3)
+                if audio.tags and 'TIT2' in audio and 'TPE1' in audio and len(audio.tags.getall('APIC')) > 0:
+                    is_complete = True
+            elif ext == ".m4a":
+                from mutagen.mp4 import MP4
+                audio = MP4(filepath)
+                if audio.tags and '\xa9nam' in audio.tags and '\xa9ART' in audio.tags and 'covr' in audio.tags:
+                    is_complete = True
+            elif ext == ".flac":
+                from mutagen.flac import FLAC
+                audio = FLAC(filepath)
+                if audio.tags and 'title' in audio.tags and 'artist' in audio.tags and audio.pictures:
+                    is_complete = True
+        except Exception:
+            pass
+            
+        if is_complete:
+            print(f"[{idx}/{len(music_files)}] {filename} -> Sudah Lengkap. Dilewati.")
+            continue
         
         # Ekstrak artis dan judul menggunakan logika Regex yang SAMA PERSIS dengan main.py
         parsed = parse_filename(filepath)

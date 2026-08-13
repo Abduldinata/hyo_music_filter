@@ -205,6 +205,7 @@ class HyoMusicModernGUI:
             "🔤 A → Z": "az",
             "🔤 Z → A": "za",
             "✅ Sukses": "success",
+            "✅ Sudah Lengkap": "complete",
             "⚠️ Tanpa Cover": "no_cover",
             "❌ Gagal Regex": "fail_regex",
             "⏳ Belum Proses": "pending"
@@ -335,10 +336,24 @@ class HyoMusicModernGUI:
         for fp in self.music_files:
             # Gunakan relative path agar user tahu kalau file ada di subfolder
             fname = os.path.relpath(fp, self.target_dir)
+            
+            # Cek kelengkapan metadata file tersebut
+            meta = self._read_metadata(fp)
+            is_complete = bool(meta.get("title") and meta.get("artist") and meta.get("cover_data"))
+            
             parsed = parse_filename(fp)
-            artist = parsed.get('artist', '') if parsed else ''
-            title = parsed.get('title', '') if parsed else ''
-            status = "⏳ Siap di-Auto Fix" if parsed else "❌ Gagal Regex (Edit Manual)"
+            
+            # Jika sudah lengkap, pakai metadata bawaan file
+            if is_complete:
+                artist = meta["artist"]
+                title = meta["title"]
+                status = "✅ Sudah Lengkap"
+            else:
+                # Jika belum lengkap, pakai tebakan Regex
+                artist = parsed.get('artist', '') if parsed else ''
+                title = parsed.get('title', '') if parsed else ''
+                status = "⏳ Siap di-Auto Fix" if parsed else "❌ Gagal Regex (Edit Manual)"
+                
             self._all_rows.append((fp, (fname, artist, title, status)))
             
         self.lbl_status.configure(text=f"Sukses memuat {len(self.music_files)} file.")
@@ -380,7 +395,9 @@ class HyoMusicModernGUI:
             
             # Status filter
             f = self.active_filter
-            if f == "success" and "✅" not in status:
+            if f == "success" and "✅ Sukses" not in status:
+                continue
+            elif f == "complete" and "✅ Sudah Lengkap" not in status:
                 continue
             elif f == "no_cover" and "⚠️" not in status:
                 continue
@@ -660,6 +677,20 @@ class HyoMusicModernGUI:
         
         for idx, fp in enumerate(self.music_files, 1):
             fname = os.path.basename(fp)
+            
+            # Cek status file di data internal
+            current_status = ""
+            for iid, vals in self._all_rows:
+                if iid == fp:
+                    current_status = vals[3]
+                    break
+                    
+            if "✅ Sudah Lengkap" in current_status:
+                count_skip += 1
+                stats = f"✅ {count_success}  ⏭️ {count_skip}  ❌ {count_fail}"
+                self.root.after(0, self._update_progress, idx, total, f"⏭️ Skip (File sudah lengkap): {fname}", stats)
+                continue
+                
             parsed = parse_filename(fp)
             
             if not parsed:
