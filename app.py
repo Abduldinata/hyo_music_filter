@@ -15,6 +15,7 @@ except ImportError:
     pass
 
 try:
+    import mutagen
     from mutagen.mp3 import MP3
     from mutagen.id3 import ID3, TIT2, TPE1, TCON, APIC, TALB, TDRC, error as id3_error
     from mutagen.mp4 import MP4, MP4Cover
@@ -101,6 +102,14 @@ def parse_filename(filename):
             else: clean['featured_artists'] = []
             return clean
             
+    # FALLBACK: Jika tidak ada pola regex yang cocok (contoh: tidak ada tanda strip "-")
+    # Asumsikan seluruh teks yang tersisa adalah Title.
+    if cleaned_name and len(cleaned_name) > 2:
+        return {
+            "artist": "",
+            "title": cleaned_name
+        }
+            
     return None
 
 class HyoMusicModernGUI:
@@ -178,9 +187,9 @@ class HyoMusicModernGUI:
         self.frame_filter = ctk.CTkFrame(self.frame_left, fg_color="transparent")
         self.frame_filter.pack(fill="x", padx=15, pady=(0, 8))
         
-        # Baris 1: Search box + label counter
+        # Baris 1: Search box + Dropdown Filter + Counter
         self.frame_search = ctk.CTkFrame(self.frame_filter, fg_color="transparent")
-        self.frame_search.pack(fill="x", pady=(0, 6))
+        self.frame_search.pack(fill="x")
         
         ctk.CTkLabel(self.frame_search, text="🔍", font=("Inter", 14)).pack(side="left", padx=(0, 4))
         self.search_var = ctk.StringVar()
@@ -190,37 +199,30 @@ class HyoMusicModernGUI:
                                          height=30, font=("Inter", 11))
         self.entry_search.pack(side="left", fill="x", expand=True, padx=(0, 10))
         
+        # Dropdown Filter
+        self.filter_options = {
+            "📋 Semua": "all",
+            "🔤 A → Z": "az",
+            "🔤 Z → A": "za",
+            "✅ Sukses": "success",
+            "⚠️ Tanpa Cover": "no_cover",
+            "❌ Gagal Regex": "fail_regex",
+            "⏳ Belum Proses": "pending"
+        }
+        
+        self.active_filter = "all"
+        self.combo_filter = ctk.CTkOptionMenu(
+            self.frame_search,
+            values=list(self.filter_options.keys()),
+            font=("Inter", 11),
+            width=140,
+            command=self._on_dropdown_change
+        )
+        self.combo_filter.pack(side="left", padx=(0, 15))
+        
         self.lbl_filter_count = ctk.CTkLabel(self.frame_search, text="0 file", 
                                              font=("Inter", 11, "bold"), text_color="#888")
         self.lbl_filter_count.pack(side="right")
-        
-        # Baris 2: Tombol-tombol filter
-        self.frame_filter_buttons = ctk.CTkFrame(self.frame_filter, fg_color="transparent")
-        self.frame_filter_buttons.pack(fill="x")
-        
-        self.active_filter = "all"  # State filter aktif
-        self.filter_buttons = {}    # Referensi tombol untuk update style
-        
-        filter_defs = [
-            ("all",        "📋 Semua"),
-            ("az",         "🔤 A → Z"),
-            ("za",         "🔤 Z → A"),
-            ("success",    "✅ Sukses"),
-            ("no_cover",   "⚠️ Tanpa Cover"),
-            ("fail_regex", "❌ Gagal Regex"),
-            ("pending",    "⏳ Belum Proses"),
-        ]
-        
-        for key, label in filter_defs:
-            btn = ctk.CTkButton(
-                self.frame_filter_buttons, text=label, font=("Inter", 11),
-                height=28, corner_radius=14,
-                fg_color="#333333" if key != "all" else "#1f538d",
-                hover_color="#444444",
-                command=lambda k=key: self._set_filter(k)
-            )
-            btn.pack(side="left", padx=(0, 5))
-            self.filter_buttons[key] = btn
         
         # Data internal untuk menyimpan semua row (agar filter tidak kehilangan data)
         self._all_rows = []  # List of (iid, values_tuple)
@@ -351,19 +353,13 @@ class HyoMusicModernGUI:
         self.search_var.set("")
         self._apply_filter()
     
-    def _set_filter(self, filter_key):
-        """Ganti filter aktif dan re-render tabel."""
-        self.active_filter = filter_key
+    def _on_dropdown_change(self, choice):
+        """Handler saat dropdown filter dipilih."""
+        self.active_filter = self.filter_options.get(choice, "all")
         self._apply_filter()
-    
+        
     def _apply_filter(self, *args):
         """Filter dan render ulang tabel berdasarkan filter aktif + search query."""
-        # Update style tombol: aktif = biru, lainnya = abu
-        for key, btn in self.filter_buttons.items():
-            if key == self.active_filter:
-                btn.configure(fg_color="#1f538d")
-            else:
-                btn.configure(fg_color="#333333")
         
         search_query = self.search_var.get().strip().lower()
         
@@ -687,11 +683,19 @@ class HyoMusicModernGUI:
             cache_entry = self.cache_db.get(key)
             source_label = "Cache"
             
-            # Cascade: Cache → iTunes → Spotify
+            # Cascade: Cache → iTunes → Spotify (Lengkapi Cover)
             if not cache_entry:
                 cache_entry = self._fetch_from_itunes(artist, title, cover_dir)
                 if cache_entry:
                     source_label = "iTunes"
+                    
+                    # Jika iTunes sukses TAPI tidak ada cover, coba cari cover-nya di Spotify!
+                    if not cache_entry.get("local_cover"):
+                        spotify_data = self._fetch_from_spotify(artist, title, cover_dir)
+                        if spotify_data and spotify_data.get("local_cover"):
+                            cache_entry["local_cover"] = spotify_data["local_cover"]
+                            source_label = "iTunes + Spotify"
+                            
                     self.cache_db[key] = cache_entry
                     
             if not cache_entry:
@@ -707,7 +711,7 @@ class HyoMusicModernGUI:
                 db_genre = cache_entry.get("genre") if cache_entry else None
                 db_cover = cache_entry.get("local_cover") if cache_entry else None
                 
-                # AUTO-CORRECT TYPO: Gunakan ejaan resmi dari API jika ada
+                # AUTO-CORRECT TYPO
                 final_artist = cache_entry.get("artist") if cache_entry and cache_entry.get("artist") else artist
                 final_title = cache_entry.get("title") if cache_entry and cache_entry.get("title") else title
                 
@@ -731,6 +735,11 @@ class HyoMusicModernGUI:
                 count_success += 1
                 rel_path = os.path.relpath(new_fp, self.target_dir)
                 self.root.after(0, self._update_row, fp, new_fp, rel_path, final_artist, final_title, status_text)
+            except mutagen.MutagenError as e:
+                # Menangkap error spesifik "can't sync to MPEG frame" dan file korup lainnya
+                count_fail += 1
+                rel_path = os.path.relpath(fp, self.target_dir)
+                self.root.after(0, self._update_row, fp, fp, rel_path, artist, title, "❌ File Korup/Bukan MP3 Asli")
             except Exception as e:
                 count_fail += 1
                 rel_path = os.path.relpath(fp, self.target_dir)

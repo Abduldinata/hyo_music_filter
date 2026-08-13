@@ -76,7 +76,15 @@ def parse_filename(filename):
                 clean['featured_artists'] = []
             return clean
             
-    # Fallback jika Regex Gagal Total
+    # FALLBACK: Jika tidak ada pola regex yang cocok
+    # Asumsikan seluruh teks yang tersisa adalah Title.
+    if cleaned_name and len(cleaned_name) > 2:
+        return {
+            "artist": "",
+            "title": cleaned_name
+        }
+            
+    # Jika gagal total
     return None
 
 def process_file(filepath, metadata_db):
