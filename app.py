@@ -271,7 +271,10 @@ class HyoMusicModernGUI:
         self.tree.pack(side="left", fill="both", expand=True)
         vsb.pack(side="right", fill="y")
         
+        # Event bindings
         self.tree.bind("<ButtonRelease-1>", self.on_tree_click)
+        # Tangani navigasi keyboard (Atas/Bawah)
+        self.tree.bind("<<TreeviewSelect>>", self.on_tree_keyboard_select)
         
         # Panel Edit Kata Sampah (Junk Words)
         self.frame_junk = ctk.CTkFrame(self.frame_left, fg_color="#1e1e1e", corner_radius=8)
@@ -556,7 +559,7 @@ class HyoMusicModernGUI:
         self._update_btn_auto_text()
 
     def on_tree_click(self, event):
-        """Menangani klik pada baris, baik untuk load metadata maupun toggle checklist."""
+        """Menangani klik pada baris dengan mouse, baik untuk load metadata maupun toggle checklist."""
         region = self.tree.identify("region", event.x, event.y)
         iid = self.tree.identify_row(event.y)
         
@@ -581,6 +584,14 @@ class HyoMusicModernGUI:
         # Tetap tampilkan detail di panel kanan
         self._load_details(iid)
 
+    def on_tree_keyboard_select(self, event):
+        """Menangani seleksi baris melalui navigasi keyboard (Atas/Bawah)."""
+        selected = self.tree.selection()
+        if not selected: return
+        
+        # Hanya load detail lagu pertama yang terpilih
+        self._load_details(selected[0])
+        
     def _update_btn_auto_text(self):
         """Update teks tombol berdasarkan jumlah checklist yang tercentang."""
         checked_count = 0
