@@ -10,6 +10,12 @@ Semua perubahan yang signifikan pada proyek "Hyo Music Filter" akan dicatat dala
   - Opsi *extended select* (Ctrl/Shift-Click) pada Treeview tetap dipertahankan.
 - Tombol Auto-Fix akan secara otomatis memperbarui statusnya menjadi *"🚀 Auto-Fix (X Terpilih)"* dan hanya akan memproses lagu-lagu yang dicentang. Lagu yang telah sukses diproses akan dihilangkan centangnya secara otomatis.
 
+## [v1.7.1] - 2026-08-13
+### Ditambahkan
+- **Gemini Google Search Grounding**: Otak AI Gemini sekarang dibekali dengan kekuatan Mesin Pencari Google!
+  - Saat Gemini menganalisis nama file yang aneh/typo (contoh: "dongker - di bandung"), ia tidak lagi sekadar menebak, melainkan akan melakukan "Googling" diam-diam ke internet untuk mencari fakta kebenarannya.
+  - Model telah di-upgrade menggunakan `gemini-1.5-pro` yang jauh lebih cerdas dalam memproses konteks pencarian internet (Search Retrieval).
+
 ## [v1.7.0] - 2026-08-13
 ### Ditambahkan
 - **Gemini AI Core Engine (Opsional)**: Aplikasi sekarang mendukung integrasi dengan Google Gemini AI (menggunakan model `gemini-1.5-flash` gratis) untuk mem-parsing dan memperbaiki nama file yang sangat kotor. 
