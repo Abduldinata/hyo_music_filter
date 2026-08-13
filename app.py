@@ -320,12 +320,15 @@ class HyoMusicModernGUI:
         
     def _refresh_table(self):
         if not self.target_dir: return
-        self.music_files = glob.glob(os.path.join(self.target_dir, "*.mp3"))
+        
+        # Gunakan rglob atau glob rekursif untuk mencari di subfolder (Python 3.5+)
+        self.music_files = glob.glob(os.path.join(self.target_dir, "**", "*.mp3"), recursive=True)
         
         # Simpan semua row ke data internal
         self._all_rows = []
         for fp in self.music_files:
-            fname = os.path.basename(fp)
+            # Gunakan relative path agar user tahu kalau file ada di subfolder
+            fname = os.path.relpath(fp, self.target_dir)
             parsed = parse_filename(fp)
             artist = parsed.get('artist', '') if parsed else ''
             title = parsed.get('title', '') if parsed else ''
@@ -487,9 +490,10 @@ class HyoMusicModernGUI:
                     new_filepath = os.path.join(directory, new_filename)
                 os.rename(self.selected_file, new_filepath)
                 
-            self._update_row(self.selected_file, new_filepath, new_filename, artist, title, "✅ SUKSES (Manual)")
+            rel_path = os.path.relpath(new_filepath, self.target_dir)
+            self._update_row(self.selected_file, new_filepath, rel_path, artist, title, "✅ SUKSES (Manual)")
             self.selected_file = new_filepath
-            self.music_files = glob.glob(os.path.join(self.target_dir, "*.mp3"))
+            self.music_files = glob.glob(os.path.join(self.target_dir, "**", "*.mp3"), recursive=True)
             
             self.lbl_status.configure(text=f"Berhasil menyimpan & rename: {new_filename}")
         except Exception as e:
@@ -643,18 +647,21 @@ class HyoMusicModernGUI:
                 
                 ext = os.path.splitext(fp)[1]
                 new_fname = clean_filename(f"{artist} - {title}{ext}")
-                new_fp = os.path.join(self.target_dir, new_fname)
+                directory = os.path.dirname(fp)
+                new_fp = os.path.join(directory, new_fname)
                 if fp != new_fp:
                     if os.path.exists(new_fp):
                         new_fname = clean_filename(f"{artist} - {title} (1){ext}")
-                        new_fp = os.path.join(self.target_dir, new_fname)
+                        new_fp = os.path.join(directory, new_fname)
                     os.rename(fp, new_fp)
                 
                 count_success += 1
-                self.root.after(0, self._update_row, fp, new_fp, new_fname, artist, title, status_text)
+                rel_path = os.path.relpath(new_fp, self.target_dir)
+                self.root.after(0, self._update_row, fp, new_fp, rel_path, artist, title, status_text)
             except Exception as e:
                 count_fail += 1
-                self.root.after(0, self._update_row, fp, fp, fname, artist, title, f"❌ Error: {str(e)[:30]}")
+                rel_path = os.path.relpath(fp, self.target_dir)
+                self.root.after(0, self._update_row, fp, fp, rel_path, artist, title, f"❌ Error: {str(e)[:30]}")
             
             # Update stats setelah proses file selesai
             stats = f"✅ {count_success}  ⏭️ {count_skip}  ❌ {count_fail}"

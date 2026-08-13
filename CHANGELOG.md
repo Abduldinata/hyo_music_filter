@@ -2,6 +2,14 @@
 
 Semua perubahan yang signifikan pada proyek "Hyo Music Filter" akan dicatat dalam file ini.
 
+## [v1.4.0] - 2026-08-13
+### Ditambahkan
+- **Recursive Directory Scan**: Sekarang aplikasi membaca file musik tidak hanya di folder utama, tapi juga di semua subfolder di dalamnya secara otomatis.
+- Tampilan kolom "Nama File" di tabel kini menunjukkan *relative path* (contoh: `2024\Anime\song.mp3`) agar user tahu lagu tersebut berada di subfolder mana.
+
+### Diperbaiki (Bug Fixes)
+- Memperbaiki bug kritis di Auto-Fix di mana file yang berada di subfolder dipindahkan secara paksa (flatten) ke folder root saat di-rename. Sekarang file akan tetap berada di dalam subfoldernya masing-masing.
+
 ## [v1.3.0] - 2026-08-13
 ### Ditambahkan
 - **Filter & Search Bar** pada tabel file musik:

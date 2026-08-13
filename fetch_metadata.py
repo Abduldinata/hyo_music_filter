@@ -18,11 +18,11 @@ def main():
         print("[-] Folder tidak ditemukan!")
         return
         
-    search_pattern = os.path.join(target_dir, "*.mp3")
-    music_files = glob.glob(search_pattern)
+    search_pattern = os.path.join(target_dir, "**", "*.mp3")
+    music_files = glob.glob(search_pattern, recursive=True)
     
     if not music_files:
-        print("[-] Tidak ada file .mp3 di dalam folder tersebut.")
+        print("[-] Tidak ada file .mp3 di dalam folder tersebut (atau subfoldernya).")
         return
         
     print(f"\n[+] Ditemukan {len(music_files)} file lagu.")
